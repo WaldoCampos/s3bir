@@ -2,6 +2,8 @@
 
 This repository contains different ways of creating Sketch-Based Image Retrieval models trained using the Self-Supervised paradigm.
 
+**WARNING:** Every path in the repository is hard-coded and has to be replaced accordingly.
+
 To start training a model, create a configuration file and use it with train.py
 
 ``python train.py --config your_config.ini``
