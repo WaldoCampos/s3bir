@@ -12,9 +12,6 @@ from torchvision import transforms as T
 def default(val, def_val):
     return def_val if val is None else val
 
-def flatten(t):
-    return t.reshape(t.shape[0], -1)
-
 def singleton(cache_key):
     def inner_fn(fn):
         @wraps(fn)
@@ -88,64 +85,13 @@ class MLP(nn.Module):
     def forward(self, x):
         return self.net(x)
 
-# a wrapper class for the base neural network
-# will manage the interception of the hidden layer output
-# and pipe it into the projecter and predictor nets
-
-class NetWrapper(nn.Module):
-    def __init__(self, net, layer = -2):
-        super().__init__()
-        self.net = net
-        self.layer = layer
-        self.hidden = {}
-        self.hook_registered = False
-
-    def _find_layer(self):
-        if type(self.layer) == str:
-            modules = dict([*self.net.named_modules()])
-            return modules.get(self.layer, None)
-        elif type(self.layer) == int:
-            children = [*self.net.children()]
-            return children[self.layer]
-        return None
-
-    def _hook(self, _, input, output):
-        device = input[0].device
-        self.hidden[device] = flatten(output)
-
-    def _register_hook(self):
-        layer = self._find_layer()
-        assert layer is not None, f'hidden layer ({self.layer}) not found'
-        handle = layer.register_forward_hook(self._hook)
-        self.hook_registered = True
-
-    def get_representation(self, x):
-        if self.layer == -1:
-            return self.net(x)
-
-        if not self.hook_registered:
-            self._register_hook()
-
-        self.hidden.clear()
-        _ = self.net(x)
-        hidden = self.hidden[x.device]
-        self.hidden.clear()
-
-        assert hidden is not None, f'hidden layer {self.layer} never emitted an output'
-        return hidden
-
-    def forward(self, x):
-        representation = self.get_representation(x)
-        return representation
-
 # main class
 
 class BYOL(nn.Module):
     def __init__(
             self,
-            net,
+            encoder,
             image_size,
-            hidden_layer = -2,
             projection_size = 256,
             projection_hidden_size = 4096,
             augment_fn = None,
@@ -155,10 +101,9 @@ class BYOL(nn.Module):
             cosine_ema_steps = None
     ):
         super().__init__()
-        self.net = net
-        device = get_module_device(net)
-
-        self.online_encoder = NetWrapper(net, layer=hidden_layer)
+        device = get_module_device(encoder)
+        # self.online_encoder = NetWrapper(net, layer=hidden_layer)
+        self.online_encoder = encoder
 
         self.use_momentum = use_momentum
         self.target_encoder = None
@@ -174,7 +119,7 @@ class BYOL(nn.Module):
         
         self.to(device)
 
-        DEFAULT_AUG = T.RandomResizedCrop((image_size, image_size))
+        DEFAULT_AUG = T.Compose([])
         self.augment1 = default(augment_fn, DEFAULT_AUG)
         self.augment2 = default(augment_fn2, self.augment1)
 
@@ -212,10 +157,10 @@ class BYOL(nn.Module):
     ):
 
         if return_embedding == 'online':
-            return self.online_encoder(x, return_projection = return_projection)
+            return self.online_encoder(x)
         elif return_embedding == 'target':
             target_encoder = self._get_target_encoder() if self.use_momentum else self.online_encoder
-            return target_encoder(x, return_projection = return_projection)
+            return target_encoder(x)
 
         image_one, image_two = self.augment1(x), self.augment2(x)
 
