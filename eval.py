@@ -58,7 +58,8 @@ if __name__ == '__main__':
     BATCH_SIZE = config.getint('BATCH_SIZE')
     CROP_SIZE = config.getint('CROP_SIZE')
     EPOCHS = config.getint('EPOCHS')
-    save_file = config['SAVE_DIR']
+    TEST_DATA_DIR = config['TEST_DATA_DIR']
+    SAVE_PATH = config['SAVE_PATH']
 
     torch.cuda.empty_cache()
 
@@ -77,8 +78,8 @@ if __name__ == '__main__':
 
     #Cargar archivos
     quickdraw = {
-        "sketches": '/home/paperspace/datasets/quickdraw/test_known/',
-        "red": '/home/paperspace/tests/s3bir/saved_models/sketch_only_quickdraw/resnet50/byol/test.pt',
+        "sketches": TEST_DATA_DIR,
+        "red": SAVE_PATH,
     }
     queries = ImageFolder(
         root = quickdraw["sketches"],

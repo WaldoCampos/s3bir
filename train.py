@@ -30,19 +30,20 @@ if __name__ == '__main__':
     config.read(args.config)
     config = config['MODEL']
 
-    save_file = config['SAVE_DIR'] + '{}_epoch.pt'
-    if not os.path.exists(os.path.split(save_file)[0]):
-        os.makedirs(os.path.split(save_file)[0])
+    SAVE_PATH = config['SAVE_PATH']
+    if not os.path.exists(os.path.split(SAVE_PATH)[0]):
+        os.makedirs(os.path.split(SAVE_PATH)[0])
     # pretrained_model = '/home/paperspace/sketch_only_test/codigoEntrenamientoDibujos/util/checkpoints/quickdraw/sketch_only_{}epoch.pt'
 
     device = "cuda:0"
     BATCH_SIZE = config.getint('BATCH_SIZE')
     CROP_SIZE = config.getint('CROP_SIZE')
     EPOCHS = config.getint('EPOCHS')
+    TRAIN_DATA_DIR = config['TRAIN_DATA_DIR']
     torch.cuda.empty_cache()
 
-    quickdraw = {"images": "/home/paperspace/datasets/quickdraw/train/",
-            "sketches": "/home/paperspace/datasets/quickdraw/train/"}
+    quickdraw = {"images": TRAIN_DATA_DIR,
+            "sketches": TRAIN_DATA_DIR}
     quickdraw_dataset = PairsDataset(
         quickdraw["images"],
         quickdraw["sketches"]
@@ -116,7 +117,7 @@ if __name__ == '__main__':
                     '\rEpoch {}, batch {} - loss {:.4f} - elapsed time {}'.format(epoch+1, i+1, np.mean(running_loss), elapsed_time_formatted))
                 i += 1
             print_epoch_time(t0)
-            torch.save(learner.state_dict(), save_file.format(epoch + 1))
+            torch.save(learner.state_dict(), SAVE_PATH.format(epoch + 1))
             running_loss = np.array([], dtype=np.float32)
             sys.stdout.write('\n')
     
