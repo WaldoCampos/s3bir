@@ -40,7 +40,7 @@ def get_embeddings_labels(model, dataloader, mode):
     for i, (batch, label) in enumerate(dataloader):
         batch = batch.to(device, dtype=torch.float)
         with torch.no_grad():
-            current_embedding = model(batch, return_embedding=mode)
+            current_projection, current_embedding = model(batch, return_embedding=mode)
         embeddings.append(current_embedding.to('cpu'))
         labels.append(label)
         sys.stdout.write('\rBatch {} done.'.format(i))
@@ -92,8 +92,8 @@ if __name__ == '__main__':
         transform = transform_catalogue)
 
 
-    queries_loader = torch.utils.data.DataLoader(queries, batch_size=512, shuffle=False)
-    catalogue_loader = torch.utils.data.DataLoader(catalogue, batch_size=512, shuffle=False)
+    queries_loader = torch.utils.data.DataLoader(queries, batch_size=BATCH_SIZE, shuffle=False)
+    catalogue_loader = torch.utils.data.DataLoader(catalogue, batch_size=BATCH_SIZE, shuffle=False)
 
     encoder = resnet50()
     #encoder.layer4 = encoder.layer4[0:1]
@@ -105,10 +105,12 @@ if __name__ == '__main__':
         #use_momentum=False
     )
 
+    learner.load_state_dict(torch.load(SAVE_PATH, map_location=torch.device(device)), strict=False)
+
     learner = learner.to(device)
 
     queries_embeddings, queries_labels = get_embeddings_labels(learner, queries_loader, 'target')
-    catalogue_embeddings, catalogue_labels = get_embeddings_labels(learner, catalogue_loader, 'online')
+    catalogue_embeddings, catalogue_labels = get_embeddings_labels(learner, catalogue_loader, 'target')
 
     queries_embeddings = queries_embeddings / np.linalg.norm(queries_embeddings, ord=2, axis=1, keepdims=True)
     catalogue_embeddings = catalogue_embeddings / np.linalg.norm(catalogue_embeddings, ord=2, axis=1, keepdims=True)

@@ -95,6 +95,8 @@ if __name__ == '__main__':
 
     learner = get_model(config)
 
+    learner.load_state_dict(torch.load(SAVE_PATH, map_location=torch.device(device)), strict=False)
+
     learner = learner.to(device)
 
     queries_embeddings, queries_labels = get_embeddings_labels(learner, queries_loader, 'target')
