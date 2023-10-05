@@ -90,8 +90,8 @@ if __name__ == '__main__':
         transform = transform_catalogue)
 
 
-    queries_loader = torch.utils.data.DataLoader(queries, batch_size=512, shuffle=False)
-    catalogue_loader = torch.utils.data.DataLoader(catalogue, batch_size=512, shuffle=False)
+    queries_loader = torch.utils.data.DataLoader(queries, batch_size=BATCH_SIZE, shuffle=False)
+    catalogue_loader = torch.utils.data.DataLoader(catalogue, batch_size=BATCH_SIZE, shuffle=False)
 
     learner = get_model(config)
 
