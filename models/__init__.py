@@ -1,5 +1,6 @@
 from .BYOL2 import BYOL
-from .net_wrapper import NetWrapper
+from .SIMSIAM import SIMSIAM
+from .common import NetWrapper
 import torchvision
 
 def get_backbone(backbone_name):
@@ -12,4 +13,6 @@ def get_model(model_config):
     backbone = get_backbone(model_config['BACKBONE'])
     if model_config['FRAMEWORK'] == 'BYOL':
         model = BYOL(backbone, model_config.getint('CROP_SIZE'))
+    if model_config['FRAMEWORK'] == 'SIMSIAM':
+        model = SIMSIAM(backbone, model_config.getint('CROP_SIZE'))
     return model

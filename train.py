@@ -33,7 +33,6 @@ if __name__ == '__main__':
     SAVE_PATH = config['SAVE_PATH']
     if not os.path.exists(os.path.split(SAVE_PATH)[0]):
         os.makedirs(os.path.split(SAVE_PATH)[0])
-    # pretrained_model = '/home/paperspace/sketch_only_test/codigoEntrenamientoDibujos/util/checkpoints/quickdraw/sketch_only_{}epoch.pt'
 
     device = "cuda:0"
     BATCH_SIZE = config.getint('BATCH_SIZE')
@@ -53,7 +52,7 @@ if __name__ == '__main__':
         batch_size=BATCH_SIZE,
         shuffle=True,
         collate_fn=pair_collate_fn,
-        num_workers=4
+        num_workers=config.getint('DATALOADER_WORKERS')
     )
 
 
@@ -73,17 +72,6 @@ if __name__ == '__main__':
         ListToTensor(device, torch.float),
     ])
 
-    # encoder = models.resnet50(weights="IMAGENET1K_V2")
-    # empty_transform = T.Compose([])
-    # epochs = 10
-    # epoch_size = len(train_loader)
-
-    # learner = BYOL(
-    #     encoder,
-    #     image_size=224,
-    #     augment_fn=empty_transform,
-    #     cosine_ema_steps=epochs*epoch_size,
-    # )
     learner = get_model(config)
 
     # se agregan las transformaciones a la red
@@ -106,7 +94,8 @@ if __name__ == '__main__':
                 opt.zero_grad()
                 loss.backward()
                 opt.step()
-                learner.update_moving_average()
+                if config['FRAMEWORK'] == 'BYOL':
+                    learner.update_moving_average()
                 running_loss = np.append(running_loss, [loss.item()])
                 elapsed_time = time.time() - t0
                 elapsed_timedelta = datetime.timedelta(seconds=elapsed_time)

@@ -1,11 +1,11 @@
 import copy
 import math
-import random
 from functools import wraps
 import torch
 from torch import nn
 import torch.nn.functional as F
 from torchvision import transforms as T
+from .common import MLP, get_module_device, default
 
 # helper functions
 
@@ -153,7 +153,6 @@ class BYOL(nn.Module):
             self,
             x,
             return_embedding = False,
-            return_projection = True
     ):
 
         if return_embedding == 'online':
