@@ -41,6 +41,8 @@ if __name__ == '__main__':
     TRAIN_DATA_DIR = config['TRAIN_DATA_DIR']
     torch.cuda.empty_cache()
 
+    # CARGA DE LOS DATOS
+    
     quickdraw = {"images": TRAIN_DATA_DIR,
             "sketches": TRAIN_DATA_DIR}
     quickdraw_dataset = PairsDataset(
@@ -54,7 +56,6 @@ if __name__ == '__main__':
         collate_fn=pair_collate_fn,
         num_workers=config.getint('DATALOADER_WORKERS')
     )
-
 
     # resize the images for the net
     transforms_1 = T.Compose([
@@ -72,6 +73,8 @@ if __name__ == '__main__':
         ListToTensor(device, torch.float),
     ])
 
+    # ENTRENAMIENTO
+    
     learner = get_model(config)
 
     # se agregan las transformaciones a la red
