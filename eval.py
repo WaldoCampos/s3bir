@@ -49,12 +49,13 @@ if __name__ == '__main__':
     # Leemos el archivo de config
     parser = argparse.ArgumentParser()
     parser.add_argument('-c', '--config', help='path to the config file', required=True)
+    parser.add_argument('--device', help='what device is to be used', required=True)
     args = parser.parse_args()
     config = configparser.ConfigParser()
     config.read(args.config)
     config = config['MODEL']
 
-    device = "cuda:0"
+    device = args.device
     BATCH_SIZE = config.getint('BATCH_SIZE')
     CROP_SIZE = config.getint('CROP_SIZE')
     EPOCHS = config.getint('EPOCHS')

@@ -12,6 +12,7 @@ import numpy as np
 from models import get_model
 from util.pairs_dataset import PairsDataset, pair_collate_fn
 from transforms.custom_transforms import BatchTransform, SelectFromTuple, PadToSquare, ListToTensor
+from torchlars import LARS
 
 
 def print_epoch_time(t0):
@@ -25,6 +26,7 @@ if __name__ == '__main__':
     # Leemos el archivo de config
     parser = argparse.ArgumentParser()
     parser.add_argument('-c', '--config', help='path to the config file', required=True)
+    parser.add_argument('--device', help='what device is to be used', required=True)
     args = parser.parse_args()
     config = configparser.ConfigParser()
     config.read(args.config)
@@ -34,7 +36,7 @@ if __name__ == '__main__':
     if not os.path.exists(os.path.split(SAVE_PATH)[0]):
         os.makedirs(os.path.split(SAVE_PATH)[0])
 
-    device = "cuda:0"
+    device = args.device
     BATCH_SIZE = config.getint('BATCH_SIZE')
     CROP_SIZE = config.getint('CROP_SIZE')
     EPOCHS = config.getint('EPOCHS')
@@ -79,7 +81,9 @@ if __name__ == '__main__':
     learner.augment2 = transforms_2
 
     # optimizador
-    opt = torch.optim.Adam(learner.parameters(), lr=3e-4)
+    # opt = torch.optim.Adam(learner.parameters(), lr=3e-4)
+    base_optimizer = torch.optim.SGD(learner.parameters(), lr=0.1)
+    opt = LARS(optimizer=base_optimizer, eps=1e-8, trust_coef=0.001)
 
     learner = learner.to(device)
     learner.train()
