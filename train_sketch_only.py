@@ -7,6 +7,7 @@ import sys
 import os
 import torch
 import torchvision.transforms as T
+import torchvision.models as models
 import numpy as np
 from models import get_model
 from util.pairs_dataset import PairsDataset, pair_collate_fn
@@ -39,20 +40,19 @@ if __name__ == '__main__':
     BATCH_SIZE = config.getint('BATCH_SIZE')
     CROP_SIZE = config.getint('CROP_SIZE')
     EPOCHS = config.getint('EPOCHS')
-    TRAIN_CATALOGUE_DIR = config['TRAIN_CATALOGUE_DIR']
-    TRAIN_QUERY_DIR = config['TRAIN_QUERY_DIR']
+    TRAIN_DATA_DIR = config['TRAIN_DATA_DIR']
     torch.cuda.empty_cache()
 
     # CARGA DE LOS DATOS
     
-    data_dir = {"images": TRAIN_CATALOGUE_DIR,
-            "sketches": TRAIN_QUERY_DIR}
-    dataset = PairsDataset(
-        data_dir["images"],
-        data_dir["sketches"]
+    quickdraw = {"images": TRAIN_DATA_DIR,
+            "sketches": TRAIN_DATA_DIR}
+    quickdraw_dataset = PairsDataset(
+        quickdraw["images"],
+        quickdraw["sketches"]
     )
     train_loader = torch.utils.data.DataLoader(
-        dataset,
+        quickdraw_dataset,
         batch_size=BATCH_SIZE,
         shuffle=True,
         collate_fn=pair_collate_fn,
@@ -60,17 +60,16 @@ if __name__ == '__main__':
     )
 
     # FUNCIONES DE AUGMENTATION
-    image_transform = T.Compose([
+    sketch_transform_1 = T.Compose([
         BatchTransform(SelectFromTuple(0)),
-        BatchTransform(PadToSquare(255)),
-        BatchTransform(T.Resize((CROP_SIZE, CROP_SIZE))),
-        BatchTransform(T.RandomResizedCrop(CROP_SIZE, scale=(0.8, 1), ratio=(1, 1))),
-        BatchTransform(T.RandomHorizontalFlip()),
-        BatchTransform(T.RandomApply([T.ColorJitter(0.8, 0.8, 0.8, 0.2)], p=0.8),),
-        BatchTransform(T.RandomApply([T.GaussianBlur(kernel_size=224//20*2+1, sigma=(0.1, 2.0))], p=0.5),),
+        BatchTransform(T.Resize((224, 224))),
+        BatchTransform(RandomLineSkip(prob=1, skip=0.1)),
+        BatchTransform(RandomRotation(prob=1, angle=30)),
+        BatchTransform(T.RandomHorizontalFlip(p=0.5)),
+        BatchTransform(T.RandomResizedCrop(224, scale=(0.8, 1), ratio=(1, 1))),
         ListToTensor(device, torch.float),
     ])
-    sketch_transform = T.Compose([
+    sketch_transform_2 = T.Compose([
         BatchTransform(SelectFromTuple(1)),
         BatchTransform(T.Resize((224, 224))),
         BatchTransform(RandomLineSkip(prob=1, skip=0.1)),
@@ -85,8 +84,8 @@ if __name__ == '__main__':
     learner = get_model(config)
 
     # se agregan las transformaciones a la red
-    learner.augment1 = image_transform
-    learner.augment2 = sketch_transform
+    learner.augment1 = sketch_transform_1
+    learner.augment2 = sketch_transform_2
 
     # optimizador
     # opt = torch.optim.Adam(learner.parameters(), lr=3e-4)
