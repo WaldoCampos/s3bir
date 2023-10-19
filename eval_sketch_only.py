@@ -59,8 +59,7 @@ if __name__ == '__main__':
     BATCH_SIZE = config.getint('BATCH_SIZE')
     CROP_SIZE = config.getint('CROP_SIZE')
     EPOCHS = config.getint('EPOCHS')
-    TEST_CATALOGUE_DIR = config['TEST_CATALOGUE_DIR']
-    TEST_QUERY_DIR = config['TEST_QUERY_DIR']
+    TEST_DATA_DIR = config['TEST_DATA_DIR']
     SAVE_PATH = config['SAVE_PATH']
 
     torch.cuda.empty_cache()
@@ -80,8 +79,7 @@ if __name__ == '__main__':
 
     #Cargar archivos
     quickdraw = {
-        "images": TEST_CATALOGUE_DIR,
-        "sketches": TEST_QUERY_DIR,
+        "sketches": TEST_DATA_DIR,
         "red": SAVE_PATH,
     }
     queries = ImageFolder(
@@ -89,7 +87,7 @@ if __name__ == '__main__':
         transform = transform_queries)
 
     catalogue = ImageFolder(
-        root = quickdraw["images"],
+        root = quickdraw["sketches"],
         transform = transform_catalogue)
 
 
@@ -110,6 +108,7 @@ if __name__ == '__main__':
 
     similarity_matrix = np.matmul(queries_embeddings, catalogue_embeddings.T)
 
-    final_metric = compute_map(similarity_matrix, queries_labels, catalogue_labels, k=-1)
+    k = 5
+    final_metric = compute_map(similarity_matrix, queries_labels, catalogue_labels, k=k)
 
-    print(f"mAP@5 del modelo: {final_metric}")
+    print(f"\n{'mAP' if k==-1 else 'mAP@'+str(k)} del modelo: {final_metric}")
