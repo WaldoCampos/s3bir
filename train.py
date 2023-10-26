@@ -16,12 +16,12 @@ from eval import EvalMAP
 import tensorflow_datasets as tfds
 
 
-def print_epoch_time(t0):
+def print_epoch_time(t0, epoch):
     final_time = time.time() - t0
     final_timedelta = datetime.timedelta(seconds=final_time)
     final_timedelta = final_timedelta - datetime.timedelta(microseconds=final_timedelta.microseconds)
     final_time_formatted = str(final_timedelta)
-    print(f"\nTiempo en epoch {epoch}: {final_time_formatted}")
+    print(f"\nTiempo en epoch {epoch+1}: {final_time_formatted}")
 
 if __name__ == '__main__':
     # Leemos el archivo de config
@@ -29,9 +29,9 @@ if __name__ == '__main__':
     parser.add_argument('-c', '--config', help='path to the config file', required=True)
     parser.add_argument('--device', help='what device is to be used', required=True)
     args = parser.parse_args()
-    config = configparser.ConfigParser()
-    config.read(args.config)
-    config = config['MODEL']
+    configp = configparser.ConfigParser()
+    configp.read(args.config)
+    config = configp['MODEL']
 
     SAVE_PATH = config['SAVE_PATH']
     if not os.path.exists(os.path.split(SAVE_PATH)[0]):
@@ -41,7 +41,8 @@ if __name__ == '__main__':
     CONTINUE = config.getint('CONTINUE')
     BATCH_SIZE = config.getint('BATCH_SIZE')
     CROP_SIZE = config.getint('CROP_SIZE')
-    EPOCHS = config.getint('EPOCHS')
+    TOTAL_EPOCHS = config.getint('TOTAL_EPOCHS')
+    LAST_EPOCH = config.getint('LAST_EPOCH')
     DATASET = config['DATASET']
     torch.cuda.empty_cache()
 
@@ -57,7 +58,6 @@ if __name__ == '__main__':
     ds = tfds.load(DATASET,
               split='train',
               as_supervised=True)
-    # dataset = dataset.map(lambda x, y, _: (torch.from_numpy(x), torch.from_numpy(y)))
     ds = list(ds.as_numpy_iterator())
 
 
@@ -71,7 +71,7 @@ if __name__ == '__main__':
 
     # FUNCIONES DE AUGMENTATION
     image_transform = T.Compose([
-        BatchTransform(SelectFromTuple(0)),
+        BatchTransform(SelectFromTuple(1)),
         BatchTransform(lambda x: x.permute(2, 0, 1)),
         BatchTransform(PadToSquare(255)),
         BatchTransform(T.Resize((CROP_SIZE, CROP_SIZE))),
@@ -82,11 +82,11 @@ if __name__ == '__main__':
         ListToTensor(device, torch.float),
     ])
     sketch_transform = T.Compose([
-        BatchTransform(SelectFromTuple(1)),
+        BatchTransform(SelectFromTuple(0)),
         BatchTransform(lambda x: x.permute(2, 0, 1)),
         BatchTransform(T.Resize((224, 224))),
-        BatchTransform(RandomLineSkip(prob=1, skip=0.1)),
-        BatchTransform(RandomRotation(prob=1, angle=30)),
+        BatchTransform(RandomLineSkip(prob=0.5, skip=0.1)),
+        BatchTransform(RandomRotation(prob=0.5, angle=30)),
         BatchTransform(T.RandomHorizontalFlip(p=0.5)),
         BatchTransform(T.RandomResizedCrop(224, scale=(0.8, 1), ratio=(1, 1))),
         ListToTensor(device, torch.float),
@@ -106,16 +106,17 @@ if __name__ == '__main__':
     # opt = LARS(optimizer=base_optimizer, eps=1e-8, trust_coef=0.001)
 
     learner = learner.to(device)
-    if CONTINUE == 0:
+    if LAST_EPOCH == 0:
         max_map = 0
-    elif CONTINUE == 1:
-        validation = EvalMAP(config, device, learner)
+    else:
+        validation = EvalMAP(config, device)
         max_map = validation.compute_map(k=-1)
+        print(f"\nmAP del último checkpoint: {max_map}")
     learner.train()
     with warnings.catch_warnings():
         warnings.filterwarnings('ignore')
         running_loss = np.array([], dtype=np.float32)
-        for epoch in range(EPOCHS):
+        for epoch in range(LAST_EPOCH, TOTAL_EPOCHS):
             i = 0
             t0 = time.time()
             for images in train_loader:
@@ -134,13 +135,21 @@ if __name__ == '__main__':
                 sys.stdout.write(
                     '\rEpoch {}, batch {} - loss {:.4f} - elapsed time {}'.format(epoch+1, i+1, np.mean(running_loss), elapsed_time_formatted))
                 i += 1
-            print_epoch_time(t0)
+            print_epoch_time(t0, epoch)
             # evaluamos el modelo con la data de test
-            # validation = EvalMAP(config, device, learner)
-            # current_map = validation.compute_map(k=-1)
-            # if current_map > max_map:
-            #     torch.save(learner.state_dict(), SAVE_PATH)
-            torch.save(learner.state_dict(), SAVE_PATH)
+            validation = EvalMAP(config, device, learner)
+            current_map = validation.compute_map(k=-1)
+            if current_map > max_map:
+                max_map = current_map
+                torch.save(learner.state_dict(), SAVE_PATH)
+                print(f"\nnueva mAP máxima del modelo: {max_map}")
+                configp['MODEL']['BEST_EPOCH'] = str(epoch + 1)
+            else:
+                print(f"\nmAP actual del modelo: {current_map} - mAP máxima del modelo: {max_map}")
+            # torch.save(learner.state_dict(), SAVE_PATH)
             running_loss = np.array([], dtype=np.float32)
+            configp['MODEL']['LAST_EPOCH'] = str(epoch + 1)
+            with open(args.config, 'w') as configfile:
+                configp.write(configfile)
             sys.stdout.write('\n')
     

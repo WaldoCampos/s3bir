@@ -1,18 +1,16 @@
-import os
 import sys
 import argparse
 import configparser
 import torch
 import torchvision.transforms as T
 import numpy as np
-from torchvision.datasets import ImageFolder
 from models import get_model
-from transforms.custom_transforms import PadToSquare
+from transforms.custom_transforms import PadToSquare, BatchTransform, SelectFromTuple, ListToTensor, RandomLineSkip, RandomRotation
 import tensorflow_datasets as tfds
 import hashlib
 
 
-def get_embeddings_labels(model, dataloader, mode):
+def get_embeddings_labels(model, dataloader, device, mode):
     model.eval()
     embeddings = []
     labels = []
@@ -26,7 +24,7 @@ def get_embeddings_labels(model, dataloader, mode):
     return torch.cat(embeddings, dim=0), torch.cat(labels, dim=0).numpy()
 
 
-def delete_duplicates_and_split(pairs_dataset):
+def delete_duplicates_and_split(pairs_dataset, sketch_transform, photo_transform):
     unique_sketches = set()
     unique_photos = set()
     sketches = []
@@ -37,10 +35,10 @@ def delete_duplicates_and_split(pairs_dataset):
         p_hash = hashlib.sha1(p).hexdigest()
         if s_hash not in unique_sketches:
             unique_sketches.add(s_hash)
-            sketches.append((torch.from_numpy(s).permute(2, 0, 1), l))
+            sketches.append((sketch_transform(s), l))
         if p_hash not in unique_photos:
             unique_photos.add(p_hash)
-            photos.append((torch.from_numpy(p).permute(2, 0, 1), l))
+            photos.append((photo_transform(p), l))
     return sketches, photos
 
 
@@ -52,6 +50,7 @@ class EvalMAP():
         self.DATASET = config['DATASET']
         self.SAVE_PATH = config['SAVE_PATH']
         self.DATALOADER_WORKERS = config.getint('DATALOADER_WORKERS')
+        self.device = device
 
         torch.cuda.empty_cache()
 
@@ -61,17 +60,30 @@ class EvalMAP():
         # dataset = dataset.map(lambda x, y, _: (torch.from_numpy(x), torch.from_numpy(y)))
         ds = list(ds.as_numpy_iterator())
 
-        queries, catalogue = delete_duplicates_and_split(ds)
+        image_transform = T.Compose([
+            lambda x: torch.from_numpy(x),
+            lambda x: x.permute(2, 0, 1),
+            PadToSquare(255),
+            T.Resize((self.CROP_SIZE, self.CROP_SIZE)),
+        ])
+        sketch_transform = T.Compose([
+            lambda x: torch.from_numpy(x),
+            lambda x: x.permute(2, 0, 1),
+            PadToSquare(255),
+            T.Resize((self.CROP_SIZE, self.CROP_SIZE)),
+        ])
+
+        queries, catalogue = delete_duplicates_and_split(ds, sketch_transform, image_transform)
         
         queries_loader = torch.utils.data.DataLoader(
             queries,
-            batch_size=BATCH_SIZE,
+            batch_size=self.BATCH_SIZE,
             shuffle=False,
             num_workers=self.DATALOADER_WORKERS,
             )
         catalogue_loader = torch.utils.data.DataLoader(
             catalogue,
-            batch_size=BATCH_SIZE,
+            batch_size=self.BATCH_SIZE,
             shuffle=False,
             num_workers=self.DATALOADER_WORKERS,
             )
@@ -79,12 +91,12 @@ class EvalMAP():
         if learner == None:
             learner = get_model(config)
 
-            learner.load_state_dict(torch.load(SAVE_PATH, map_location=torch.device(device)), strict=False)
+            learner.load_state_dict(torch.load(self.SAVE_PATH, map_location=torch.device(self.device)), strict=False)
 
-        learner = learner.to(device)
+        learner = learner.to(self.device)
 
-        queries_embeddings, self.queries_labels = get_embeddings_labels(learner, queries_loader, 'target')
-        catalogue_embeddings, self.catalogue_labels = get_embeddings_labels(learner, catalogue_loader, 'online')
+        queries_embeddings, self.queries_labels = get_embeddings_labels(learner, queries_loader, self.device, 'target')
+        catalogue_embeddings, self.catalogue_labels = get_embeddings_labels(learner, catalogue_loader, self.device, 'online')
 
         queries_embeddings = queries_embeddings / np.linalg.norm(queries_embeddings, ord=2, axis=1, keepdims=True)
         catalogue_embeddings = catalogue_embeddings / np.linalg.norm(catalogue_embeddings, ord=2, axis=1, keepdims=True)
@@ -121,12 +133,6 @@ if __name__ == '__main__':
     config = config['MODEL']
 
     device = args.device
-
-    BATCH_SIZE = config.getint('BATCH_SIZE')
-    CROP_SIZE = config.getint('CROP_SIZE')
-    EPOCHS = config.getint('EPOCHS')
-    DATASET = config['DATASET']
-    SAVE_PATH = config['SAVE_PATH']
 
     torch.cuda.empty_cache()
 
