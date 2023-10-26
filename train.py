@@ -33,12 +33,14 @@ if __name__ == '__main__':
     configp.read(args.config)
     config = configp['MODEL']
 
-    SAVE_PATH = config['SAVE_PATH']
-    if not os.path.exists(os.path.split(SAVE_PATH)[0]):
-        os.makedirs(os.path.split(SAVE_PATH)[0])
+    LAST_CHECKPOINT_PATH = config['LAST_CHECKPOINT_PATH']
+    BEST_CHECKPOINT_PATH = config['BEST_CHECKPOINT_PATH']
+    if not os.path.exists(os.path.split(LAST_CHECKPOINT_PATH)[0]):
+        os.makedirs(os.path.split(LAST_CHECKPOINT_PATH)[0])
+    if not os.path.exists(os.path.split(BEST_CHECKPOINT_PATH)[0]):
+        os.makedirs(os.path.split(BEST_CHECKPOINT_PATH)[0])
 
     device = args.device
-    CONTINUE = config.getint('CONTINUE')
     BATCH_SIZE = config.getint('BATCH_SIZE')
     CROP_SIZE = config.getint('CROP_SIZE')
     TOTAL_EPOCHS = config.getint('TOTAL_EPOCHS')
@@ -109,9 +111,13 @@ if __name__ == '__main__':
     if LAST_EPOCH == 0:
         max_map = 0
     else:
-        validation = EvalMAP(config, device)
+        learner.load_state_dict(torch.load(BEST_CHECKPOINT_PATH, map_location=torch.device(device)))
+        validation = EvalMAP(config, device, learner)
         max_map = validation.compute_map(k=-1)
-        print(f"\nmAP del último checkpoint: {max_map}")
+        learner.load_state_dict(torch.load(LAST_CHECKPOINT_PATH, map_location=torch.device(device)))
+        validation = EvalMAP(config, device, learner)
+        last_map = validation.compute_map(k=-1)
+        print(f"\nmAP del último checkpoint: {last_map} - mAP máxima alcanzada: {max_map}")
     learner.train()
     with warnings.catch_warnings():
         warnings.filterwarnings('ignore')
@@ -141,12 +147,12 @@ if __name__ == '__main__':
             current_map = validation.compute_map(k=-1)
             if current_map > max_map:
                 max_map = current_map
-                torch.save(learner.state_dict(), SAVE_PATH)
+                torch.save(learner.state_dict(), BEST_CHECKPOINT_PATH)
                 print(f"\nnueva mAP máxima del modelo: {max_map}")
                 configp['MODEL']['BEST_EPOCH'] = str(epoch + 1)
             else:
                 print(f"\nmAP actual del modelo: {current_map} - mAP máxima del modelo: {max_map}")
-            # torch.save(learner.state_dict(), SAVE_PATH)
+            torch.save(learner.state_dict(), LAST_CHECKPOINT_PATH)
             running_loss = np.array([], dtype=np.float32)
             configp['MODEL']['LAST_EPOCH'] = str(epoch + 1)
             with open(args.config, 'w') as configfile:

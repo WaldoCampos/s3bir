@@ -48,7 +48,8 @@ class EvalMAP():
         self.CROP_SIZE = config.getint('CROP_SIZE')
         self.EPOCHS = config.getint('EPOCHS')
         self.DATASET = config['DATASET']
-        self.SAVE_PATH = config['SAVE_PATH']
+        self.LAST_CHECKPOINT_PATH = config['LAST_CHECKPOINT_PATH']
+        self.BEST_CHECKPOINT_PATH = config['BEST_CHECKPOINT_PATH']
         self.DATALOADER_WORKERS = config.getint('DATALOADER_WORKERS')
         self.device = device
 
@@ -90,8 +91,7 @@ class EvalMAP():
 
         if learner == None:
             learner = get_model(config)
-
-            learner.load_state_dict(torch.load(self.SAVE_PATH, map_location=torch.device(self.device)), strict=False)
+            learner.load_state_dict(torch.load(self.LAST_CHECKPOINT_PATH, map_location=torch.device(self.device)), strict=False)
 
         learner = learner.to(self.device)
 
