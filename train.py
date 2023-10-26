@@ -11,7 +11,9 @@ import numpy as np
 from models import get_model
 from util.pairs_dataset import PairsDataset, pair_collate_fn
 from transforms.custom_transforms import BatchTransform, SelectFromTuple, PadToSquare, ListToTensor, RandomLineSkip, RandomRotation
-from torchlars import LARS
+# from torchlars import LARS
+from eval import EvalMAP
+import tensorflow_datasets as tfds
 
 
 def print_epoch_time(t0):
@@ -36,32 +38,41 @@ if __name__ == '__main__':
         os.makedirs(os.path.split(SAVE_PATH)[0])
 
     device = args.device
+    CONTINUE = config.getint('CONTINUE')
     BATCH_SIZE = config.getint('BATCH_SIZE')
     CROP_SIZE = config.getint('CROP_SIZE')
     EPOCHS = config.getint('EPOCHS')
-    TRAIN_CATALOGUE_DIR = config['TRAIN_CATALOGUE_DIR']
-    TRAIN_QUERY_DIR = config['TRAIN_QUERY_DIR']
+    DATASET = config['DATASET']
     torch.cuda.empty_cache()
 
     # CARGA DE LOS DATOS
     
-    data_dir = {"images": TRAIN_CATALOGUE_DIR,
-            "sketches": TRAIN_QUERY_DIR}
-    dataset = PairsDataset(
-        data_dir["images"],
-        data_dir["sketches"]
-    )
+    # data_dir = {"images": TRAIN_CATALOGUE_DIR,
+    #         "sketches": TRAIN_QUERY_DIR}
+    # dataset = PairsDataset(
+    #     data_dir["images"],
+    #     data_dir["sketches"]
+    # )
+
+    ds = tfds.load(DATASET,
+              split='train',
+              as_supervised=True)
+    # dataset = dataset.map(lambda x, y, _: (torch.from_numpy(x), torch.from_numpy(y)))
+    ds = list(ds.as_numpy_iterator())
+
+
     train_loader = torch.utils.data.DataLoader(
-        dataset,
+        ds,
         batch_size=BATCH_SIZE,
         shuffle=True,
-        collate_fn=pair_collate_fn,
+        collate_fn=lambda x: [(torch.from_numpy(a), torch.from_numpy(b)) for a, b, _ in x],
         num_workers=config.getint('DATALOADER_WORKERS')
     )
 
     # FUNCIONES DE AUGMENTATION
     image_transform = T.Compose([
         BatchTransform(SelectFromTuple(0)),
+        BatchTransform(lambda x: x.permute(2, 0, 1)),
         BatchTransform(PadToSquare(255)),
         BatchTransform(T.Resize((CROP_SIZE, CROP_SIZE))),
         BatchTransform(T.RandomResizedCrop(CROP_SIZE, scale=(0.8, 1), ratio=(1, 1))),
@@ -72,6 +83,7 @@ if __name__ == '__main__':
     ])
     sketch_transform = T.Compose([
         BatchTransform(SelectFromTuple(1)),
+        BatchTransform(lambda x: x.permute(2, 0, 1)),
         BatchTransform(T.Resize((224, 224))),
         BatchTransform(RandomLineSkip(prob=1, skip=0.1)),
         BatchTransform(RandomRotation(prob=1, angle=30)),
@@ -89,11 +101,16 @@ if __name__ == '__main__':
     learner.augment2 = sketch_transform
 
     # optimizador
-    # opt = torch.optim.Adam(learner.parameters(), lr=3e-4)
-    base_optimizer = torch.optim.SGD(learner.parameters(), lr=0.1)
-    opt = LARS(optimizer=base_optimizer, eps=1e-8, trust_coef=0.001)
+    opt = torch.optim.Adam(learner.parameters(), lr=3e-4)
+    # base_optimizer = torch.optim.SGD(learner.parameters(), lr=0.1)
+    # opt = LARS(optimizer=base_optimizer, eps=1e-8, trust_coef=0.001)
 
     learner = learner.to(device)
+    if CONTINUE == 0:
+        max_map = 0
+    elif CONTINUE == 1:
+        validation = EvalMAP(config, device, learner)
+        max_map = validation.compute_map(k=-1)
     learner.train()
     with warnings.catch_warnings():
         warnings.filterwarnings('ignore')
@@ -118,7 +135,12 @@ if __name__ == '__main__':
                     '\rEpoch {}, batch {} - loss {:.4f} - elapsed time {}'.format(epoch+1, i+1, np.mean(running_loss), elapsed_time_formatted))
                 i += 1
             print_epoch_time(t0)
-            torch.save(learner.state_dict(), SAVE_PATH.format(epoch + 1))
+            # evaluamos el modelo con la data de test
+            # validation = EvalMAP(config, device, learner)
+            # current_map = validation.compute_map(k=-1)
+            # if current_map > max_map:
+            #     torch.save(learner.state_dict(), SAVE_PATH)
+            torch.save(learner.state_dict(), SAVE_PATH)
             running_loss = np.array([], dtype=np.float32)
             sys.stdout.write('\n')
     

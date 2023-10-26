@@ -12,7 +12,7 @@ import numpy as np
 from models import get_model
 from util.pairs_dataset import PairsDataset, pair_collate_fn
 from transforms.custom_transforms import BatchTransform, SelectFromTuple, PadToSquare, ListToTensor, RandomLineSkip, RandomRotation
-from torchlars import LARS
+# from torchlars import LARS
 
 
 def print_epoch_time(t0):
@@ -88,9 +88,9 @@ if __name__ == '__main__':
     learner.augment2 = sketch_transform_2
 
     # optimizador
-    # opt = torch.optim.Adam(learner.parameters(), lr=3e-4)
-    base_optimizer = torch.optim.SGD(learner.parameters(), lr=0.1)
-    opt = LARS(optimizer=base_optimizer, eps=1e-8, trust_coef=0.001)
+    opt = torch.optim.Adam(learner.parameters(), lr=3e-4)
+    # base_optimizer = torch.optim.SGD(learner.parameters(), lr=0.1)
+    # opt = LARS(optimizer=base_optimizer, eps=1e-8, trust_coef=0.001)
 
     learner = learner.to(device)
     learner.train()
