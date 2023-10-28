@@ -43,7 +43,7 @@ def delete_duplicates_and_split(pairs_dataset, sketch_transform, photo_transform
 
 
 class EvalMAP():
-    def __init__(self, config, device, learner=None):
+    def __init__(self, config, device, learner, mode='best'):
         self.BATCH_SIZE = config.getint('BATCH_SIZE')
         self.CROP_SIZE = config.getint('CROP_SIZE')
         self.EPOCHS = config.getint('EPOCHS')
@@ -89,9 +89,10 @@ class EvalMAP():
             num_workers=self.DATALOADER_WORKERS,
             )
 
-        if learner == None:
-            learner = get_model(config)
+        if mode == 'last':
             learner.load_state_dict(torch.load(self.LAST_CHECKPOINT_PATH, map_location=torch.device(self.device)), strict=False)
+        elif mode == 'best':
+            learner.load_state_dict(torch.load(self.BEST_CHECKPOINT_PATH, map_location=torch.device(self.device)), strict=False)
 
         learner = learner.to(self.device)
 
@@ -136,7 +137,8 @@ if __name__ == '__main__':
 
     torch.cuda.empty_cache()
 
-    validation = EvalMAP(config, device=device)
+    learner = get_model(config)
+    validation = EvalMAP(config, device, learner, 'best')
 
     k = -1
     final_metric = validation.compute_map(k=k)
