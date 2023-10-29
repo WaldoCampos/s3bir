@@ -137,7 +137,8 @@ if __name__ == '__main__':
     else:
         validation = EvalMAP(config, device, learner,'best')
         max_map = validation.compute_map(k=-1)
-        validation = EvalMAP(config, device, learner,'last')
+        learner.load_state_dict(torch.load(LAST_CHECKPOINT_PATH, map_location=torch.device(device)), strict=False)
+        validation = EvalMAP(config, device, learner)
         last_map = validation.compute_map(k=-1)
         print(f"\nmAP del último checkpoint: {last_map} - mAP máxima alcanzada: {max_map}")
     learner.train()
