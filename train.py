@@ -7,6 +7,7 @@ import sys
 import os
 import torch
 import torchvision.transforms as T
+from torchvision.utils import save_image
 import numpy as np
 from models import get_model
 from util.pairs_dataset import PairsDataset, pair_collate_fn
@@ -46,15 +47,25 @@ if __name__ == '__main__':
     TOTAL_EPOCHS = config.getint('TOTAL_EPOCHS')
     LAST_EPOCH = config.getint('LAST_EPOCH')
     DATASET = config['DATASET']
+    TRAIN_CATALOGUE_DIR = config['TRAIN_CATALOGUE_DIR']
+    TRAIN_QUERY_DIR = config['TRAIN_QUERY_DIR']
     torch.cuda.empty_cache()
 
     # CARGA DE LOS DATOS
     
     # data_dir = {"images": TRAIN_CATALOGUE_DIR,
     #         "sketches": TRAIN_QUERY_DIR}
-    # dataset = PairsDataset(
+    # ds = PairsDataset(
     #     data_dir["images"],
     #     data_dir["sketches"]
+    # )
+
+    # train_loader = torch.utils.data.DataLoader(
+    #     ds,
+    #     batch_size=BATCH_SIZE,
+    #     shuffle=True,
+    #     collate_fn=pair_collate_fn,
+    #     num_workers=config.getint('DATALOADER_WORKERS')
     # )
 
     ds = tfds.load(DATASET,
@@ -75,24 +86,37 @@ if __name__ == '__main__':
     image_transform = T.Compose([
         BatchTransform(SelectFromTuple(1)),
         BatchTransform(lambda x: x.permute(2, 0, 1)),
-        BatchTransform(PadToSquare(255)),
         BatchTransform(T.Resize((CROP_SIZE, CROP_SIZE))),
         BatchTransform(T.RandomResizedCrop(CROP_SIZE, scale=(0.8, 1), ratio=(1, 1))),
         BatchTransform(T.RandomHorizontalFlip()),
         BatchTransform(T.RandomApply([T.ColorJitter(0.8, 0.8, 0.8, 0.2)], p=0.8),),
-        BatchTransform(T.RandomApply([T.GaussianBlur(kernel_size=224//20*2+1, sigma=(0.1, 2.0))], p=0.5),),
+        BatchTransform(T.RandomApply([T.GaussianBlur(kernel_size=CROP_SIZE//20*2+1, sigma=(0.1, 2.0))], p=0.5),),
         ListToTensor(device, torch.float),
     ])
     sketch_transform = T.Compose([
         BatchTransform(SelectFromTuple(0)),
         BatchTransform(lambda x: x.permute(2, 0, 1)),
-        BatchTransform(T.Resize((224, 224))),
+        BatchTransform(T.Resize((CROP_SIZE, CROP_SIZE))),
         BatchTransform(RandomLineSkip(prob=0.5, skip=0.1)),
         BatchTransform(RandomRotation(prob=0.5, angle=30)),
         BatchTransform(T.RandomHorizontalFlip(p=0.5)),
-        BatchTransform(T.RandomResizedCrop(224, scale=(0.8, 1), ratio=(1, 1))),
+        BatchTransform(T.RandomResizedCrop(CROP_SIZE, scale=(0.8, 1), ratio=(1, 1))),
         ListToTensor(device, torch.float),
     ])
+
+    # # Visualización
+    # batch = next(iter(train_loader))[:8]
+    # sketches = [a[0].type(torch.float) for a in batch]
+    # imgs = [a[1].type(torch.float) for a in batch]
+    # sketches = sketch_transform(batch)
+    # imgs = image_transform(batch)
+    # sv_img_path = '/home/wcampos/tests/s3bir/visualization_4/'
+    # if not os.path.exists(sv_img_path):
+    #     os.makedirs(sv_img_path)
+    # for n, (s, i) in enumerate(zip(sketches, imgs)):
+    #     save_image(s / 255, os.path.join(sv_img_path, f"sketch_{n}.jpg"))
+    #     save_image(i / 255, os.path.join(sv_img_path, f"image_{n}.jpg"))
+    # input()
 
     # ENTRENAMIENTO
     

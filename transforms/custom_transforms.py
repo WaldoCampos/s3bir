@@ -175,19 +175,23 @@ class RandomLineSkip(object):
         self.skip = skip
 
     def __call__(self, image):
-        num_rows = image.shape[1]
-        num_selected_rows = int(math.ceil(self.skip * float(num_rows)))
-        shuffled_indices = torch.randperm(num_rows)
-        selected_indices = shuffled_indices[:num_selected_rows]
-        mask = torch.ones(num_rows)
-        mask[selected_indices] = 0
-        return image * mask.unsqueeze(1)
+        p = random.uniform(0, 1)
+        if p < self.prob:
+            num_rows = image.shape[1]
+            num_selected_rows = int(math.ceil(self.skip * float(num_rows)))
+            shuffled_indices = torch.randperm(num_rows)
+            selected_indices = shuffled_indices[:num_selected_rows]
+            mask = torch.ones(num_rows)
+            mask[selected_indices] = 0
+            mask2 = (1 - mask) * 255
+            image = image * mask.unsqueeze(1) + mask2.unsqueeze(1)
+        return image
     
 
 class RandomRotation(object):
     def __init__(self, prob=0.5, angle=30):
         self.prob = prob
-        self.t = T.RandomRotation(angle)
+        self.t = T.RandomRotation(angle, fill=255)
     
     def __call__(self, image):
         p = random.uniform(0, 1)

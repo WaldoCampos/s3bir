@@ -18,6 +18,7 @@ class PairsDataset(torch.utils.data.Dataset):
             class_name = os.path.basename(class_path)
             for sketch_path in glob.iglob(os.path.join(class_path, '**')):
                 image_name = os.path.basename(sketch_path).split(".")[-2]
+                image_name = image_name.split("-")[0]
                 if class_name+'/'+image_name not in image_paths_to_sketch_paths:
                     image_paths_to_sketch_paths[class_name+'/'+image_name] = []
                 image_paths_to_sketch_paths[class_name+'/'+image_name].append(sketch_path)
@@ -31,7 +32,7 @@ class PairsDataset(torch.utils.data.Dataset):
 
                 if class_name+'/'+image_name in image_paths_to_sketch_paths:
                     for sketch_path in image_paths_to_sketch_paths[class_name+'/'+image_name]:
-                        self.image_sketch_pairs.append((image_path, sketch_path))
+                        self.image_sketch_pairs.append((sketch_path, image_path))
 
     def __len__(self):
         return len(self.image_sketch_pairs)
