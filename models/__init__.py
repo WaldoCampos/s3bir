@@ -16,7 +16,7 @@ def get_backbone(backbone_name):
 def get_model(model_config):
     backbone = get_backbone(model_config['BACKBONE'])
     if model_config['FRAMEWORK'] == 'BYOL':
-        model = BYOL(backbone, model_config.getint('CROP_SIZE'))
+        model = BYOL(backbone, model_config.getint('CROP_SIZE'), cosine_ema_steps=model_config.getint('TOTAL_EPOCHS')*model_config.getint('DS_LEN'))
     if model_config['FRAMEWORK'] == 'SIMSIAM':
         model = SIMSIAM(backbone, model_config.getint('CROP_SIZE'))
     if model_config['FRAMEWORK'] == 'SIMCLR':

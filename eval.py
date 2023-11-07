@@ -20,7 +20,7 @@ def get_embeddings_labels(model, dataloader, device, mode):
             current_embedding = model(batch, return_embedding=mode)
         embeddings.append(current_embedding.to('cpu'))
         labels.append(label)
-        sys.stdout.write('\rBatch {} done.'.format(i))
+        # sys.stdout.write('\rBatch {} done.'.format(i))
     return torch.cat(embeddings, dim=0), torch.cat(labels, dim=0).numpy()
 
 
@@ -43,13 +43,11 @@ def delete_duplicates_and_split(pairs_dataset, sketch_transform, photo_transform
 
 
 class EvalMAP():
-    def __init__(self, config, device, learner, mode='best'):
+    def __init__(self, config, device, learner):
         self.BATCH_SIZE = config.getint('BATCH_SIZE')
         self.CROP_SIZE = config.getint('CROP_SIZE')
         self.EPOCHS = config.getint('EPOCHS')
         self.DATASET = config['DATASET']
-        self.LAST_CHECKPOINT_PATH = config['LAST_CHECKPOINT_PATH']
-        self.BEST_CHECKPOINT_PATH = config['BEST_CHECKPOINT_PATH']
         self.DATALOADER_WORKERS = config.getint('DATALOADER_WORKERS')
         self.device = device
 
@@ -66,12 +64,14 @@ class EvalMAP():
             lambda x: x.permute(2, 0, 1),
             PadToSquare(255),
             T.Resize((self.CROP_SIZE, self.CROP_SIZE)),
+            lambda x: x / 255
         ])
         sketch_transform = T.Compose([
             lambda x: torch.from_numpy(x),
             lambda x: x.permute(2, 0, 1),
             PadToSquare(255),
             T.Resize((self.CROP_SIZE, self.CROP_SIZE)),
+            lambda x: x / 255
         ])
 
         queries, catalogue = delete_duplicates_and_split(ds, sketch_transform, image_transform)
@@ -88,11 +88,6 @@ class EvalMAP():
             shuffle=False,
             num_workers=self.DATALOADER_WORKERS,
             )
-
-        if mode == 'last':
-            learner.load_state_dict(torch.load(self.LAST_CHECKPOINT_PATH, map_location=torch.device(self.device)), strict=False)
-        elif mode == 'best':
-            learner.load_state_dict(torch.load(self.BEST_CHECKPOINT_PATH, map_location=torch.device(self.device)), strict=False)
 
         learner = learner.to(self.device)
 
@@ -132,13 +127,15 @@ if __name__ == '__main__':
     config = configparser.ConfigParser()
     config.read(args.config)
     config = config['MODEL']
+    BEST_CHECKPOINT_PATH = config['BEST_CHECKPOINT_PATH']
 
     device = args.device
 
     torch.cuda.empty_cache()
 
     learner = get_model(config)
-    validation = EvalMAP(config, device, learner, 'best')
+    learner.load_state_dict(torch.load(BEST_CHECKPOINT_PATH, map_location=torch.device(device)), strict=False)
+    validation = EvalMAP(config, device, learner)
 
     k = -1
     final_metric = validation.compute_map(k=k)

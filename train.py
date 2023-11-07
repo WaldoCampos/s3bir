@@ -15,14 +15,15 @@ from transforms.custom_transforms import BatchTransform, SelectFromTuple, PadToS
 # from torchlars import LARS
 from eval import EvalMAP
 import tensorflow_datasets as tfds
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 
-def print_epoch_time(t0, epoch):
+def print_epoch_time_and_loss(t0, epoch, loss):
     final_time = time.time() - t0
     final_timedelta = datetime.timedelta(seconds=final_time)
     final_timedelta = final_timedelta - datetime.timedelta(microseconds=final_timedelta.microseconds)
     final_time_formatted = str(final_timedelta)
-    print(f"\nTiempo en epoch {epoch+1}: {final_time_formatted}")
+    print(f"\nTiempo en epoch {epoch+1}: {final_time_formatted} - loss: {loss}")
 
 if __name__ == '__main__':
     # Leemos el archivo de config
@@ -35,11 +36,14 @@ if __name__ == '__main__':
     config = configp['MODEL']
 
     LAST_CHECKPOINT_PATH = config['LAST_CHECKPOINT_PATH']
-    BEST_CHECKPOINT_PATH = config['BEST_CHECKPOINT_PATH']
+    BEST_MAP_CHECKPOINT_PATH = config['BEST_MAP_CHECKPOINT_PATH']
+    BEST_MAP5_CHECKPOINT_PATH = config['BEST_MAP5_CHECKPOINT_PATH']
     if not os.path.exists(os.path.split(LAST_CHECKPOINT_PATH)[0]):
         os.makedirs(os.path.split(LAST_CHECKPOINT_PATH)[0])
-    if not os.path.exists(os.path.split(BEST_CHECKPOINT_PATH)[0]):
-        os.makedirs(os.path.split(BEST_CHECKPOINT_PATH)[0])
+    if not os.path.exists(os.path.split(BEST_MAP_CHECKPOINT_PATH)[0]):
+        os.makedirs(os.path.split(BEST_MAP_CHECKPOINT_PATH)[0])
+    if not os.path.exists(os.path.split(BEST_MAP5_CHECKPOINT_PATH)[0]):
+        os.makedirs(os.path.split(BEST_MAP5_CHECKPOINT_PATH)[0])
 
     device = args.device
     BATCH_SIZE = config.getint('BATCH_SIZE')
@@ -47,8 +51,8 @@ if __name__ == '__main__':
     TOTAL_EPOCHS = config.getint('TOTAL_EPOCHS')
     LAST_EPOCH = config.getint('LAST_EPOCH')
     DATASET = config['DATASET']
-    TRAIN_CATALOGUE_DIR = config['TRAIN_CATALOGUE_DIR']
-    TRAIN_QUERY_DIR = config['TRAIN_QUERY_DIR']
+    # TRAIN_CATALOGUE_DIR = config['TRAIN_CATALOGUE_DIR']
+    # TRAIN_QUERY_DIR = config['TRAIN_QUERY_DIR']
     torch.cuda.empty_cache()
 
     # CARGA DE LOS DATOS
@@ -72,7 +76,8 @@ if __name__ == '__main__':
               split='train',
               as_supervised=True)
     ds = list(ds.as_numpy_iterator())
-
+    ds_len = len(ds)
+    configp['MODEL']['ds_len'] = str(ds_len)
 
     train_loader = torch.utils.data.DataLoader(
         ds,
@@ -91,6 +96,7 @@ if __name__ == '__main__':
         BatchTransform(T.RandomHorizontalFlip()),
         BatchTransform(T.RandomApply([T.ColorJitter(0.8, 0.8, 0.8, 0.2)], p=0.8),),
         BatchTransform(T.RandomApply([T.GaussianBlur(kernel_size=CROP_SIZE//20*2+1, sigma=(0.1, 2.0))], p=0.5),),
+        BatchTransform(lambda x: x / 255),
         ListToTensor(device, torch.float),
     ])
     sketch_transform = T.Compose([
@@ -101,6 +107,7 @@ if __name__ == '__main__':
         BatchTransform(RandomRotation(prob=0.5, angle=30)),
         BatchTransform(T.RandomHorizontalFlip(p=0.5)),
         BatchTransform(T.RandomResizedCrop(CROP_SIZE, scale=(0.8, 1), ratio=(1, 1))),
+        BatchTransform(lambda x: x / 255),
         ListToTensor(device, torch.float),
     ])
 
@@ -127,6 +134,7 @@ if __name__ == '__main__':
     learner.augment2 = sketch_transform
 
     # optimizador
+    # TODO agregar cosine schedule al learning rate
     opt = torch.optim.Adam(learner.parameters(), lr=3e-4)
     # base_optimizer = torch.optim.SGD(learner.parameters(), lr=0.1)
     # opt = LARS(optimizer=base_optimizer, eps=1e-8, trust_coef=0.001)
@@ -134,13 +142,20 @@ if __name__ == '__main__':
     learner = learner.to(device)
     if LAST_EPOCH == 0:
         max_map = 0
+        max_map5 = 0
     else:
-        validation = EvalMAP(config, device, learner,'best')
+        learner.load_state_dict(torch.load(BEST_MAP_CHECKPOINT_PATH, map_location=torch.device(device)), strict=False)
+        validation = EvalMAP(config, device, learner)
         max_map = validation.compute_map(k=-1)
+        learner.load_state_dict(torch.load(BEST_MAP5_CHECKPOINT_PATH, map_location=torch.device(device)), strict=False)
+        validation = EvalMAP(config, device, learner)
+        max_map5 = validation.compute_map(k=5)
         learner.load_state_dict(torch.load(LAST_CHECKPOINT_PATH, map_location=torch.device(device)), strict=False)
         validation = EvalMAP(config, device, learner)
         last_map = validation.compute_map(k=-1)
-        print(f"\nmAP del último checkpoint: {last_map} - mAP máxima alcanzada: {max_map}")
+        last_map5 = validation.compute_map(k=5)
+        print(f"mAP del último checkpoint: {last_map} - mAP máxima alcanzada: {max_map}")
+        print(f"mAP@5 del último checkpoint: {last_map5} - mAP@5 máxima alcanzada: {max_map5}")
     learner.train()
     with warnings.catch_warnings():
         warnings.filterwarnings('ignore')
@@ -161,20 +176,28 @@ if __name__ == '__main__':
                 elapsed_timedelta = elapsed_timedelta - \
                     datetime.timedelta(microseconds=elapsed_timedelta.microseconds)
                 elapsed_time_formatted = str(elapsed_timedelta)
-                sys.stdout.write(
-                    '\rEpoch {}, batch {} - loss {:.4f} - elapsed time {}'.format(epoch+1, i+1, np.mean(running_loss), elapsed_time_formatted))
+                # sys.stdout.write(
+                #     '\rEpoch {}, batch {} - loss {:.4f} - elapsed time {}'.format(epoch+1, i+1, np.mean(running_loss), elapsed_time_formatted))
                 i += 1
-            print_epoch_time(t0, epoch)
+            print_epoch_time_and_loss(t0, epoch, np.mean(running_loss))
             # evaluamos el modelo con la data de test
             validation = EvalMAP(config, device, learner)
             current_map = validation.compute_map(k=-1)
+            current_map5 = validation.compute_map(k=5)
+            if current_map5 > max_map5:
+                max_map5 = current_map5
+                torch.save(learner.state_dict(), BEST_MAP5_CHECKPOINT_PATH)
+                print(f"nueva mAP@5 máxima del modelo: {max_map5}")
+                configp['MODEL']['BEST_MAP5_EPOCH'] = str(epoch + 1)
+            else:
+                print(f"mAP@5 actual del modelo: {current_map5} - mAP@5 máxima del modelo: {max_map5}")
             if current_map > max_map:
                 max_map = current_map
-                torch.save(learner.state_dict(), BEST_CHECKPOINT_PATH)
-                print(f"\nnueva mAP máxima del modelo: {max_map}")
-                configp['MODEL']['BEST_EPOCH'] = str(epoch + 1)
+                torch.save(learner.state_dict(), BEST_MAP_CHECKPOINT_PATH)
+                print(f"nueva mAP máxima del modelo: {max_map}")
+                configp['MODEL']['BEST_MAP_EPOCH'] = str(epoch + 1)
             else:
-                print(f"\nmAP actual del modelo: {current_map} - mAP máxima del modelo: {max_map}")
+                print(f"mAP actual del modelo: {current_map} - mAP máxima del modelo: {max_map}")
             torch.save(learner.state_dict(), LAST_CHECKPOINT_PATH)
             running_loss = np.array([], dtype=np.float32)
             configp['MODEL']['LAST_EPOCH'] = str(epoch + 1)
