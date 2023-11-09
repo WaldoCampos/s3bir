@@ -4,10 +4,12 @@ import configparser
 import torch
 import torchvision.transforms as T
 import numpy as np
-from models import get_model
+from models import get_model, get_dataset
 from transforms.custom_transforms import PadToSquare, BatchTransform, SelectFromTuple, ListToTensor, RandomLineSkip, RandomRotation
 import tensorflow_datasets as tfds
 import hashlib
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 
 def get_embeddings_labels(model, dataloader, device, mode):
@@ -53,28 +55,7 @@ class EvalMAP():
 
         torch.cuda.empty_cache()
 
-        ds = tfds.load(self.DATASET,
-            split='validation',
-            as_supervised=True)
-        # dataset = dataset.map(lambda x, y, _: (torch.from_numpy(x), torch.from_numpy(y)))
-        ds = list(ds.as_numpy_iterator())
-
-        image_transform = T.Compose([
-            lambda x: torch.from_numpy(x),
-            lambda x: x.permute(2, 0, 1),
-            PadToSquare(255),
-            T.Resize((self.CROP_SIZE, self.CROP_SIZE)),
-            lambda x: x / 255
-        ])
-        sketch_transform = T.Compose([
-            lambda x: torch.from_numpy(x),
-            lambda x: x.permute(2, 0, 1),
-            PadToSquare(255),
-            T.Resize((self.CROP_SIZE, self.CROP_SIZE)),
-            lambda x: x / 255
-        ])
-
-        queries, catalogue = delete_duplicates_and_split(ds, sketch_transform, image_transform)
+        queries, catalogue = get_dataset(config, train=False)
         
         queries_loader = torch.utils.data.DataLoader(
             queries,
@@ -127,14 +108,14 @@ if __name__ == '__main__':
     config = configparser.ConfigParser()
     config.read(args.config)
     config = config['MODEL']
-    BEST_CHECKPOINT_PATH = config['BEST_CHECKPOINT_PATH']
+    BEST_MAP_CHECKPOINT_PATH = config['BEST_MAP_CHECKPOINT_PATH']
 
     device = args.device
 
     torch.cuda.empty_cache()
 
     learner = get_model(config)
-    learner.load_state_dict(torch.load(BEST_CHECKPOINT_PATH, map_location=torch.device(device)), strict=False)
+    learner.load_state_dict(torch.load(BEST_MAP_CHECKPOINT_PATH, map_location=torch.device(device)), strict=False)
     validation = EvalMAP(config, device, learner)
 
     k = -1

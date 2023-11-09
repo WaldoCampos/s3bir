@@ -9,7 +9,7 @@ import torch
 import torchvision.transforms as T
 from torchvision.utils import save_image
 import numpy as np
-from models import get_model
+from models import get_model, get_dataset
 from util.pairs_dataset import PairsDataset, pair_collate_fn
 from transforms.custom_transforms import BatchTransform, SelectFromTuple, PadToSquare, ListToTensor, RandomLineSkip, RandomRotation
 # from torchlars import LARS
@@ -51,6 +51,7 @@ if __name__ == '__main__':
     TOTAL_EPOCHS = config.getint('TOTAL_EPOCHS')
     LAST_EPOCH = config.getint('LAST_EPOCH')
     DATASET = config['DATASET']
+    CONTINUE = config.getint('CONTINUE')
     # TRAIN_CATALOGUE_DIR = config['TRAIN_CATALOGUE_DIR']
     # TRAIN_QUERY_DIR = config['TRAIN_QUERY_DIR']
     torch.cuda.empty_cache()
@@ -72,20 +73,8 @@ if __name__ == '__main__':
     #     num_workers=config.getint('DATALOADER_WORKERS')
     # )
 
-    ds = tfds.load(DATASET,
-              split='train',
-              as_supervised=True)
-    ds = list(ds.as_numpy_iterator())
-    ds_len = len(ds)
+    train_loader, ds_len = get_dataset(config, train=True)
     configp['MODEL']['ds_len'] = str(ds_len)
-
-    train_loader = torch.utils.data.DataLoader(
-        ds,
-        batch_size=BATCH_SIZE,
-        shuffle=True,
-        collate_fn=lambda x: [(torch.from_numpy(a), torch.from_numpy(b)) for a, b, _ in x],
-        num_workers=config.getint('DATALOADER_WORKERS')
-    )
 
     # FUNCIONES DE AUGMENTATION
     image_transform = T.Compose([
@@ -117,7 +106,7 @@ if __name__ == '__main__':
     # imgs = [a[1].type(torch.float) for a in batch]
     # sketches = sketch_transform(batch)
     # imgs = image_transform(batch)
-    # sv_img_path = '/home/wcampos/tests/s3bir/visualization_4/'
+    # sv_img_path = '/home/wcampos/tests/s3bir/visualization_ecom_1/'
     # if not os.path.exists(sv_img_path):
     #     os.makedirs(sv_img_path)
     # for n, (s, i) in enumerate(zip(sketches, imgs)):
@@ -139,10 +128,20 @@ if __name__ == '__main__':
     # base_optimizer = torch.optim.SGD(learner.parameters(), lr=0.1)
     # opt = LARS(optimizer=base_optimizer, eps=1e-8, trust_coef=0.001)
 
+    # cargamos modelos previos en caso de continuar entrenamiento
     learner = learner.to(device)
     if LAST_EPOCH == 0:
-        max_map = 0
-        max_map5 = 0
+        if CONTINUE == 0:
+            max_map = 0
+            max_map5 = 0
+        elif CONTINUE == 1:
+            STARTING_CHECKPOINT = config['STARTING_CHECKPOINT']
+            learner.load_state_dict(torch.load(STARTING_CHECKPOINT, map_location=torch.device(device)), strict=False)
+            validation = EvalMAP(config, device, learner)
+            max_map = validation.compute_map(k=-1)
+            max_map5 = validation.compute_map(k=5)
+            print(f"mAP del checkpoint inicial: {max_map}")
+            print(f"mAP@5 del checkpoint inicial: {max_map5}")
     else:
         learner.load_state_dict(torch.load(BEST_MAP_CHECKPOINT_PATH, map_location=torch.device(device)), strict=False)
         validation = EvalMAP(config, device, learner)
