@@ -52,26 +52,7 @@ if __name__ == '__main__':
     LAST_EPOCH = config.getint('LAST_EPOCH')
     DATASET = config['DATASET']
     CONTINUE = config.getint('CONTINUE')
-    # TRAIN_CATALOGUE_DIR = config['TRAIN_CATALOGUE_DIR']
-    # TRAIN_QUERY_DIR = config['TRAIN_QUERY_DIR']
     torch.cuda.empty_cache()
-
-    # CARGA DE LOS DATOS
-    
-    # data_dir = {"images": TRAIN_CATALOGUE_DIR,
-    #         "sketches": TRAIN_QUERY_DIR}
-    # ds = PairsDataset(
-    #     data_dir["images"],
-    #     data_dir["sketches"]
-    # )
-
-    # train_loader = torch.utils.data.DataLoader(
-    #     ds,
-    #     batch_size=BATCH_SIZE,
-    #     shuffle=True,
-    #     collate_fn=pair_collate_fn,
-    #     num_workers=config.getint('DATALOADER_WORKERS')
-    # )
 
     train_loader, ds_len = get_dataset(config, train=True)
     configp['MODEL']['ds_len'] = str(ds_len)
@@ -132,8 +113,14 @@ if __name__ == '__main__':
     learner = learner.to(device)
     if LAST_EPOCH == 0:
         if CONTINUE == 0:
-            max_map = 0
-            max_map5 = 0
+            validation = EvalMAP(config, device, learner)
+            max_map = validation.compute_map(k=-1)
+            max_map5 = validation.compute_map(k=5)
+            print(f"mAP del modelo inicial: {max_map}")
+            print(f"mAP@5 del modelo inicial: {max_map5}")
+            torch.save(learner.state_dict(), BEST_MAP5_CHECKPOINT_PATH)
+            torch.save(learner.state_dict(), BEST_MAP_CHECKPOINT_PATH)
+            torch.save(learner.state_dict(), LAST_CHECKPOINT_PATH)
         elif CONTINUE == 1:
             STARTING_CHECKPOINT = config['STARTING_CHECKPOINT']
             learner.load_state_dict(torch.load(STARTING_CHECKPOINT, map_location=torch.device(device)), strict=False)
