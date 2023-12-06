@@ -1,6 +1,7 @@
 from .BYOL2 import BYOL
 from .SIMSIAM import SIMSIAM
 from .SIMCLR import SIMCLR
+from .DINO import DINO
 from .common import NetWrapper
 from transforms.custom_transforms import PadToSquare
 import torch
@@ -43,6 +44,8 @@ def get_model(model_config):
         model = SIMSIAM(backbone, model_config.getint('CROP_SIZE'))
     if model_config['FRAMEWORK'] == 'SIMCLR':
         model = SIMCLR(backbone, model_config.getint('CROP_SIZE'))
+    if model_config['FRAMEWORK'] == 'DINO':
+        model = DINO(backbone, model_config.getint('CROP_SIZE'))
     return model
 
 def get_dataset(model_config, train=True):
