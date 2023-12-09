@@ -142,14 +142,13 @@ class DINO(nn.Module):
 
         self.use_momentum = use_momentum
         self.target_encoder = None
-        self.target_projector = None
         if cosine_ema_steps:
             self.target_ema_updater = CosineDecayEMA(moving_average_decay, cosine_ema_steps)
         else:
             self.target_ema_updater = EMA(moving_average_decay)
 
         dummy = self.online_encoder(torch.randn(2, 3, image_size, image_size, device=device))
-        self.MLP = torch.nn.Sequential(
+        self.online_MLP = torch.nn.Sequential(
             torch.nn.Linear(dummy.shape[1], projection_hidden_size),
             torch.nn.GELU(),
             torch.nn.Linear(projection_hidden_size, projection_hidden_size),
@@ -158,12 +157,29 @@ class DINO(nn.Module):
             L2NormalizationLayer()
         )
         self.apply(self._init_weights)
-        self.last_layer = nn.utils.weight_norm(nn.Linear(projection_size, output_size, bias=False))
-        self.last_layer.weight_g.data.fill_(1)
-        self.last_layer.weight_g.requires_grad = False
+        self.online_last_layer = nn.utils.weight_norm(nn.Linear(projection_size, output_size, bias=False))
+        self.online_last_layer.weight_g.data.fill_(1)
+        self.online_last_layer.weight_g.requires_grad = False
         self.online_projector = torch.nn.Sequential(
-            self.MLP,
-            self.last_layer
+            self.online_MLP,
+            self.online_last_layer
+        )
+
+        self.target_MLP = torch.nn.Sequential(
+            torch.nn.Linear(dummy.shape[1], projection_hidden_size),
+            torch.nn.GELU(),
+            torch.nn.Linear(projection_hidden_size, projection_hidden_size),
+            torch.nn.GELU(),
+            torch.nn.Linear(projection_hidden_size, projection_size),
+            L2NormalizationLayer()
+        )
+        self.apply(self._init_weights)
+        self.target_last_layer = nn.utils.weight_norm(nn.Linear(projection_size, output_size, bias=False))
+        self.target_last_layer.weight_g.data.fill_(1)
+        self.target_last_layer.weight_g.requires_grad = False
+        self.target_projector = torch.nn.Sequential(
+            self.target_MLP,
+            self.target_last_layer
         )
         
         self.to(device)
@@ -193,11 +209,11 @@ class DINO(nn.Module):
         set_requires_grad(target_encoder, False)
         return target_encoder
     
-    @singleton('target_projector')
-    def _get_target_projector(self):
-        target_projector = copy.deepcopy(self.online_projector)
-        set_requires_grad(target_projector, False)
-        return target_projector
+    # @singleton('target_projector')
+    # def _get_target_projector(self):
+    #     target_projector = copy.deepcopy(self.online_projector)
+    #     set_requires_grad(target_projector, False)
+    #     return target_projector
 
     def reset_moving_average(self):
         del self.target_encoder
@@ -229,9 +245,9 @@ class DINO(nn.Module):
 
         with torch.no_grad():
             target_encoder = self._get_target_encoder() if self.use_momentum else self.online_encoder
-            target_projector = self._get_target_projector() if self.use_momentum else self.online_projector
+            # target_projector = self._get_target_projector() if self.use_momentum else self.online_projector
             target_embed_two = target_encoder(image_two)
-            target_proj_two = target_projector(target_embed_two)
+            target_proj_two = self.target_projector(target_embed_two)
             if self.C == None:
                 self.C = target_proj_two.mean(dim=0)
             else:
