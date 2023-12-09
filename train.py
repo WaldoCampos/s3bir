@@ -16,6 +16,7 @@ from transforms.custom_transforms import BatchTransform, SelectFromTuple, PadToS
 from eval import EvalMAP
 import tensorflow_datasets as tfds
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 
 
 def print_epoch_time_and_loss(t0, epoch, loss):
@@ -28,7 +29,7 @@ def print_epoch_time_and_loss(t0, epoch, loss):
 if __name__ == '__main__':
     # Leemos el archivo de config
     parser = argparse.ArgumentParser()
-    parser.add_argument('-c', '--config', help='path to the config file', required=True)
+    parser.add_argument('--config', help='path to the config file', required=True)
     parser.add_argument('--device', help='what device is to be used', required=True)
     args = parser.parse_args()
     configp = configparser.ConfigParser()
@@ -154,7 +155,7 @@ if __name__ == '__main__':
                 opt.zero_grad()
                 loss.backward()
                 opt.step()
-                if config['FRAMEWORK'] == 'BYOL':
+                if config['FRAMEWORK'] == 'BYOL' or config['FRAMEWORK'] == 'DINO':
                     learner.update_moving_average()
                 running_loss = np.append(running_loss, [loss.item()])
                 elapsed_time = time.time() - t0
@@ -162,8 +163,8 @@ if __name__ == '__main__':
                 elapsed_timedelta = elapsed_timedelta - \
                     datetime.timedelta(microseconds=elapsed_timedelta.microseconds)
                 elapsed_time_formatted = str(elapsed_timedelta)
-                # sys.stdout.write(
-                #     '\rEpoch {}, batch {} - loss {:.4f} - elapsed time {}'.format(epoch+1, i+1, np.mean(running_loss), elapsed_time_formatted))
+                sys.stdout.write(
+                    '\rEpoch {}, batch {} - loss {:.4f} - elapsed time {}'.format(epoch+1, i+1, np.mean(running_loss), elapsed_time_formatted))
                 i += 1
             print_epoch_time_and_loss(t0, epoch, np.mean(running_loss))
             # evaluamos el modelo con la data de test

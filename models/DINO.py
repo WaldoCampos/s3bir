@@ -121,7 +121,7 @@ class DINO(nn.Module):
             image_size,
             projection_size = 256,
             projection_hidden_size = 2048,
-            output_size = 4096,
+            output_size = 1024,
             augment_fn = None,
             augment_fn2 = None,
             moving_average_decay = 0.996,
@@ -189,7 +189,7 @@ class DINO(nn.Module):
         self.augment2 = default(augment_fn2, self.augment1)
 
         # send a mock image tensor to instantiate singleton parameters
-        self.forward(torch.randn(2, 3, image_size, image_size, device=device))
+        # self.forward(torch.randn(2, 3, image_size, image_size, device=device))
 
     def loss_fn(self, t, s):
         t = t.detach()
