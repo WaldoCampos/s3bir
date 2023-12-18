@@ -156,31 +156,41 @@ class DINO(nn.Module):
             torch.nn.Linear(projection_hidden_size, projection_size),
             L2NormalizationLayer()
         )
+        self.target_MLP = copy.deepcopy(self.online_MLP)
         self.apply(self._init_weights)
         self.online_last_layer = nn.utils.weight_norm(nn.Linear(projection_size, output_size, bias=False))
+        self.target_last_layer = nn.utils.weight_norm(nn.Linear(projection_size, output_size, bias=False))
         self.online_last_layer.weight_g.data.fill_(1)
         self.online_last_layer.weight_g.requires_grad = False
+        self.target_last_layer.weight_g.data.fill_(1)
+        self.target_last_layer.weight_g.requires_grad = False
         self.online_projector = torch.nn.Sequential(
             self.online_MLP,
             self.online_last_layer
         )
-
-        self.target_MLP = torch.nn.Sequential(
-            torch.nn.Linear(dummy.shape[1], projection_hidden_size),
-            torch.nn.GELU(),
-            torch.nn.Linear(projection_hidden_size, projection_hidden_size),
-            torch.nn.GELU(),
-            torch.nn.Linear(projection_hidden_size, projection_size),
-            L2NormalizationLayer()
-        )
-        self.apply(self._init_weights)
-        self.target_last_layer = nn.utils.weight_norm(nn.Linear(projection_size, output_size, bias=False))
-        self.target_last_layer.weight_g.data.fill_(1)
-        self.target_last_layer.weight_g.requires_grad = False
         self.target_projector = torch.nn.Sequential(
             self.target_MLP,
-            self.target_last_layer
+            self.target_last_layer,
         )
+
+        # self.target_MLP = torch.nn.Sequential(
+        #     torch.nn.Linear(dummy.shape[1], projection_hidden_size),
+        #     torch.nn.GELU(),
+        #     torch.nn.Linear(projection_hidden_size, projection_hidden_size),
+        #     torch.nn.GELU(),
+        #     torch.nn.Linear(projection_hidden_size, projection_size),
+        #     L2NormalizationLayer()
+        # )
+        # self.apply(self._init_weights)
+        # self.target_last_layer = nn.utils.weight_norm(nn.Linear(projection_size, output_size, bias=False))
+        # self.target_last_layer.weight_g.data.fill_(1)
+        # self.target_last_layer.weight_g.requires_grad = False
+        # self.target_projector = torch.nn.Sequential(
+        #     self.target_MLP,
+        #     self.target_last_layer
+        # )
+
+    
         
         self.to(device)
 
