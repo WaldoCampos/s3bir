@@ -8,6 +8,7 @@ import torch
 import torchvision
 import torchvision.transforms as T
 import tensorflow as tf
+import tensorflow as tf
 import tensorflow_datasets as tfds
 import hashlib
 
@@ -34,7 +35,7 @@ def get_backbone(backbone_name):
         backbone = NetWrapper(backbone, layer='avgpool')
     if backbone_name == 'VITB16':
         backbone = torchvision.models.vit_b_16(weights='IMAGENET1K_V1')
-        backbone = NetWrapper(backbone, layer='encoder')
+        # backbone.heads = torch.nn.Identity()
     return backbone
 
 def get_model(model_config):
@@ -51,11 +52,12 @@ def get_model(model_config):
 
 def get_dataset(model_config, train=True):
     with tf.device('/CPU:0'):
+        # with tf.device('/CPU:0'):
         ds_name = model_config['DATASET']
         CROP_SIZE = model_config.getint('CROP_SIZE')
         if train == True:
             if ds_name == 'SKETCHY':
-                ds = tfds.load('tfds_sketchy', split='train', as_supervised=True)
+                ds = tfds.load('tfds_sketchy', split='train', as_supervised=True, data_dir='/home/wcampos/data/tensorflow_datasets/')
                 ds = list(ds.as_numpy_iterator())
                 ds_len = len(ds)
                 train_loader = torch.utils.data.DataLoader(
@@ -63,10 +65,11 @@ def get_dataset(model_config, train=True):
                     batch_size=model_config.getint('BATCH_SIZE'),
                     shuffle=True,
                     collate_fn=lambda x: [(torch.from_numpy(a), torch.from_numpy(b)) for a, b, _ in x],
-                    num_workers=model_config.getint('DATALOADER_WORKERS')
+                    num_workers=model_config.getint('DATALOADER_WORKERS'),
+                    drop_last=True,
                 )
             elif ds_name == 'ECOMMERCE':
-                ds = tfds.load('tfds_ecommerce_train', split='pidinet', as_supervised=True)
+                ds = tfds.load('tfds_ecommerce_train', split='pidinet', as_supervised=True, data_dir='/home/wcampos/data/tensorflow_datasets/')
                 ds = list(ds.as_numpy_iterator())
                 ds_len = len(ds)
                 train_loader = torch.utils.data.DataLoader(
@@ -74,12 +77,13 @@ def get_dataset(model_config, train=True):
                     batch_size=model_config.getint('BATCH_SIZE'),
                     shuffle=True,
                     collate_fn=lambda x: [(torch.from_numpy(a), torch.from_numpy(b)) for a, b, _ in x],
-                    num_workers=model_config.getint('DATALOADER_WORKERS')
+                    num_workers=model_config.getint('DATALOADER_WORKERS'),
+                    drop_last=True,
                 )
             return train_loader, ds_len
         else:
             if ds_name == 'SKETCHY':
-                ds = tfds.load('tfds_sketchy', split='validation', as_supervised=True)
+                ds = tfds.load('tfds_sketchy', split='validation', as_supervised=True, data_dir='/home/wcampos/data/tensorflow_datasets/')
                 ds = list(ds.as_numpy_iterator())
                 image_transform = T.Compose([
                     lambda x: torch.from_numpy(x),
@@ -95,8 +99,8 @@ def get_dataset(model_config, train=True):
                 ])
                 queries, catalogue = delete_duplicates_and_split(ds, sketch_transform, image_transform)
             elif ds_name == 'ECOMMERCE':
-                queries = tfds.load('tfds_ecommerce_valid', split='sketches', as_supervised=True)
-                catalogue = tfds.load('tfds_ecommerce_valid', split='photos', as_supervised=True)
+                queries = tfds.load('tfds_ecommerce_valid', split='sketches', as_supervised=True, data_dir='/home/wcampos/data/tensorflow_datasets/')
+                catalogue = tfds.load('tfds_ecommerce_valid', split='photos', as_supervised=True, data_dir='/home/wcampos/data/tensorflow_datasets/')
                 queries = list(queries.as_numpy_iterator())
                 catalogue = list(catalogue.as_numpy_iterator())
                 image_transform = T.Compose([

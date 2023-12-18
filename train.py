@@ -14,9 +14,8 @@ from util.pairs_dataset import PairsDataset, pair_collate_fn
 from transforms.custom_transforms import BatchTransform, SelectFromTuple, PadToSquare, ListToTensor, RandomLineSkip, RandomRotation
 # from torchlars import LARS
 from eval import EvalMAP
-import tensorflow_datasets as tfds
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+# os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 
 
 def print_epoch_time_and_loss(t0, epoch, loss):
@@ -106,8 +105,8 @@ if __name__ == '__main__':
 
     # optimizador
     # TODO agregar cosine schedule al learning rate
-    opt = torch.optim.Adam(learner.parameters(), lr=3e-4)
-    # base_optimizer = torch.optim.SGD(learner.parameters(), lr=0.1)
+    opt = torch.optim.Adam(learner.parameters(), lr=1e-4)
+    # opt = torch.optim.SGD(learner.parameters(), lr=0.001, momentum=0.9)
     # opt = LARS(optimizer=base_optimizer, eps=1e-8, trust_coef=0.001)
 
     # cargamos modelos previos en caso de continuar entrenamiento
@@ -163,8 +162,8 @@ if __name__ == '__main__':
                 elapsed_timedelta = elapsed_timedelta - \
                     datetime.timedelta(microseconds=elapsed_timedelta.microseconds)
                 elapsed_time_formatted = str(elapsed_timedelta)
-                sys.stdout.write(
-                    '\rEpoch {}, batch {} - loss {:.4f} - elapsed time {}'.format(epoch+1, i+1, np.mean(running_loss), elapsed_time_formatted))
+                # sys.stdout.write(
+                #     '\rEpoch {}, batch {} - loss {:.4f} - elapsed time {}'.format(epoch+1, i+1, np.mean(running_loss), elapsed_time_formatted))
                 i += 1
             print_epoch_time_and_loss(t0, epoch, np.mean(running_loss))
             # evaluamos el modelo con la data de test

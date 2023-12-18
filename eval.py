@@ -62,12 +62,14 @@ class EvalMAP():
             batch_size=self.BATCH_SIZE,
             shuffle=False,
             num_workers=self.DATALOADER_WORKERS,
+            drop_last=True,
             )
         catalogue_loader = torch.utils.data.DataLoader(
             catalogue,
             batch_size=self.BATCH_SIZE,
             shuffle=False,
             num_workers=self.DATALOADER_WORKERS,
+            drop_last=True,
             )
 
         learner = learner.to(self.device)
