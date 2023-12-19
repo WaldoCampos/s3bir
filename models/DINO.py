@@ -157,7 +157,7 @@ class DINO(nn.Module):
             L2NormalizationLayer()
         )
         self.target_MLP = copy.deepcopy(self.online_MLP)
-        self.apply(self._init_weights)
+        # self.apply(self._init_weights)
         self.online_last_layer = nn.utils.weight_norm(nn.Linear(projection_size, output_size, bias=False))
         self.target_last_layer = nn.utils.weight_norm(nn.Linear(projection_size, output_size, bias=False))
         self.online_last_layer.weight_g.data.fill_(1)

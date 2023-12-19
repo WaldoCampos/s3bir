@@ -57,7 +57,7 @@ def get_dataset(model_config, train=True):
         CROP_SIZE = model_config.getint('CROP_SIZE')
         if train == True:
             if ds_name == 'SKETCHY':
-                ds = tfds.load('tfds_sketchy', split='train', as_supervised=True, data_dir='/home/wcampos/data/tensorflow_datasets/')
+                ds = tfds.load('tfds_sketchy', split='train', as_supervised=True)
                 ds = list(ds.as_numpy_iterator())
                 ds_len = len(ds)
                 train_loader = torch.utils.data.DataLoader(
@@ -69,7 +69,7 @@ def get_dataset(model_config, train=True):
                     drop_last=True,
                 )
             elif ds_name == 'ECOMMERCE':
-                ds = tfds.load('tfds_ecommerce_train', split='pidinet', as_supervised=True, data_dir='/home/wcampos/data/tensorflow_datasets/')
+                ds = tfds.load('tfds_ecommerce_train', split='pidinet', as_supervised=True)
                 ds = list(ds.as_numpy_iterator())
                 ds_len = len(ds)
                 train_loader = torch.utils.data.DataLoader(
@@ -83,7 +83,7 @@ def get_dataset(model_config, train=True):
             return train_loader, ds_len
         else:
             if ds_name == 'SKETCHY':
-                ds = tfds.load('tfds_sketchy', split='validation', as_supervised=True, data_dir='/home/wcampos/data/tensorflow_datasets/')
+                ds = tfds.load('tfds_sketchy', split='validation', as_supervised=True)
                 ds = list(ds.as_numpy_iterator())
                 image_transform = T.Compose([
                     lambda x: torch.from_numpy(x),
@@ -99,8 +99,8 @@ def get_dataset(model_config, train=True):
                 ])
                 queries, catalogue = delete_duplicates_and_split(ds, sketch_transform, image_transform)
             elif ds_name == 'ECOMMERCE':
-                queries = tfds.load('tfds_ecommerce_valid', split='sketches', as_supervised=True, data_dir='/home/wcampos/data/tensorflow_datasets/')
-                catalogue = tfds.load('tfds_ecommerce_valid', split='photos', as_supervised=True, data_dir='/home/wcampos/data/tensorflow_datasets/')
+                queries = tfds.load('tfds_ecommerce_valid', split='sketches', as_supervised=True)
+                catalogue = tfds.load('tfds_ecommerce_valid', split='photos', as_supervised=True)
                 queries = list(queries.as_numpy_iterator())
                 catalogue = list(catalogue.as_numpy_iterator())
                 image_transform = T.Compose([
