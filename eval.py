@@ -55,32 +55,32 @@ class EvalMAP():
 
         torch.cuda.empty_cache()
 
-        queries, catalogue = get_dataset(config, train=False)
+        self.queries, self.catalogue = get_dataset(config, train=False)
         
-        queries_loader = torch.utils.data.DataLoader(
-            queries,
+        self.queries_loader = torch.utils.data.DataLoader(
+            self.queries,
             batch_size=self.BATCH_SIZE,
             shuffle=False,
             num_workers=self.DATALOADER_WORKERS,
             drop_last=True,
             )
-        catalogue_loader = torch.utils.data.DataLoader(
-            catalogue,
+        self.catalogue_loader = torch.utils.data.DataLoader(
+            self.catalogue,
             batch_size=self.BATCH_SIZE,
             shuffle=False,
             num_workers=self.DATALOADER_WORKERS,
             drop_last=True,
             )
 
-        learner = learner.to(self.device)
+        self.learner = learner.to(self.device)
 
-        queries_embeddings, self.queries_labels = get_embeddings_labels(learner, queries_loader, self.device, 'target')
-        catalogue_embeddings, self.catalogue_labels = get_embeddings_labels(learner, catalogue_loader, self.device, 'online')
+        self.queries_embeddings, self.queries_labels = get_embeddings_labels(self.learner, self.queries_loader, self.device, 'target')
+        self.catalogue_embeddings, self.catalogue_labels = get_embeddings_labels(self.learner, self.catalogue_loader, self.device, 'online')
 
-        queries_embeddings = queries_embeddings / np.linalg.norm(queries_embeddings, ord=2, axis=1, keepdims=True)
-        catalogue_embeddings = catalogue_embeddings / np.linalg.norm(catalogue_embeddings, ord=2, axis=1, keepdims=True)
+        self.queries_embeddings = self.queries_embeddings / np.linalg.norm(self.queries_embeddings, ord=2, axis=1, keepdims=True)
+        self.catalogue_embeddings = self.catalogue_embeddings / np.linalg.norm(self.catalogue_embeddings, ord=2, axis=1, keepdims=True)
 
-        self.similarity_matrix = np.matmul(queries_embeddings, catalogue_embeddings.T)
+        self.similarity_matrix = np.matmul(self.queries_embeddings, self.catalogue_embeddings.T)
 
     def compute_map(self, k=5):
         sorted_pos = np.argsort(-self.similarity_matrix, axis = 1)                
@@ -99,9 +99,24 @@ class EvalMAP():
             AP.append(AP_q)                            
         mAP = np.mean(np.array(AP))        
         return mAP
+    
+    def create_file(self, k=-1):
+        filename = '/home/wcampos/search_output.txt'
+        file_out = open(filename, 'w')
+        sorted_pos = np.argsort(-self.similarity_matrix, axis=1)
+        sorted_pos_limited = sorted_pos[:, 1:] if k == -1 else sorted_pos[:, 1:k + 1]
+        for i in np.arange(sorted_pos_limited.shape[0]):
+            file_out.write(f"{self.queries_labels[i]}")
+            predict = self.catalogue_labels[sorted_pos_limited[i,:]]
+            for p in predict:
+                file_out.write(f", {p}")
+            file_out.write("\n")
+        file_out.close()
 
 
 if __name__ == '__main__':
+    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+    os.environ['CUDA_VISIBLE_DEVICES'] = '1'
     # Leemos el archivo de config
     parser = argparse.ArgumentParser()
     parser.add_argument('-c', '--config', help='path to the config file', required=True)
@@ -110,17 +125,22 @@ if __name__ == '__main__':
     config = configparser.ConfigParser()
     config.read(args.config)
     config = config['MODEL']
+    LAST_CHECKPOINT_PATH = config['LAST_CHECKPOINT_PATH']
     BEST_MAP_CHECKPOINT_PATH = config['BEST_MAP_CHECKPOINT_PATH']
+    BEST_MAP5_CHECKPOINT_PATH = config['BEST_MAP5_CHECKPOINT_PATH']
 
     device = args.device
 
     torch.cuda.empty_cache()
-
     learner = get_model(config)
-    learner.load_state_dict(torch.load(BEST_MAP_CHECKPOINT_PATH, map_location=torch.device(device)), strict=False)
-    validation = EvalMAP(config, device, learner)
 
+    learner.load_state_dict(torch.load(LAST_CHECKPOINT_PATH, map_location=torch.device(device)), strict=False)
+    validation1 = EvalMAP(config, device, learner)
+    learner.load_state_dict(torch.load(LAST_CHECKPOINT_PATH, map_location=torch.device(device)), strict=False)
+    validation2 = EvalMAP(config, device, learner)
+    learner.load_state_dict(torch.load(LAST_CHECKPOINT_PATH, map_location=torch.device(device)), strict=False)
+    validation3 = EvalMAP(config, device, learner)
     k = -1
-    final_metric = validation.compute_map(k=k)
+    final_metric = validation3.compute_map(k=k)
 
     print(f"\n{'mAP' if k==-1 else 'mAP@'+str(k)} del modelo: {final_metric}")

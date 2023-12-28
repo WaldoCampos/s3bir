@@ -160,6 +160,7 @@ cython_debug/
 #.idea/
 
 saved_models/
+saved_models_old/
 *.txt
 visualization*
 plots/

@@ -13,9 +13,9 @@ from models import get_model, get_dataset
 from util.pairs_dataset import PairsDataset, pair_collate_fn
 from transforms.custom_transforms import BatchTransform, SelectFromTuple, PadToSquare, ListToTensor, RandomLineSkip, RandomRotation
 # from torchlars import LARS
-from eval import EvalMAP
+from eval_2 import eval_model
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-# os.environ['CUDA_VISIBLE_DEVICES'] = '1'
+os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 
 
 def print_epoch_time_and_loss(t0, epoch, loss):
@@ -37,13 +37,10 @@ if __name__ == '__main__':
 
     LAST_CHECKPOINT_PATH = config['LAST_CHECKPOINT_PATH']
     BEST_MAP_CHECKPOINT_PATH = config['BEST_MAP_CHECKPOINT_PATH']
-    BEST_MAP5_CHECKPOINT_PATH = config['BEST_MAP5_CHECKPOINT_PATH']
     if not os.path.exists(os.path.split(LAST_CHECKPOINT_PATH)[0]):
         os.makedirs(os.path.split(LAST_CHECKPOINT_PATH)[0])
     if not os.path.exists(os.path.split(BEST_MAP_CHECKPOINT_PATH)[0]):
         os.makedirs(os.path.split(BEST_MAP_CHECKPOINT_PATH)[0])
-    if not os.path.exists(os.path.split(BEST_MAP5_CHECKPOINT_PATH)[0]):
-        os.makedirs(os.path.split(BEST_MAP5_CHECKPOINT_PATH)[0])
 
     device = args.device
     BATCH_SIZE = config.getint('BATCH_SIZE')
@@ -52,10 +49,28 @@ if __name__ == '__main__':
     LAST_EPOCH = config.getint('LAST_EPOCH')
     DATASET = config['DATASET']
     CONTINUE = config.getint('CONTINUE')
+    DATALOADER_WORKERS = config.getint('DATALOADER_WORKERS')
     torch.cuda.empty_cache()
 
     train_loader, ds_len = get_dataset(config, train=True)
     configp['MODEL']['ds_len'] = str(ds_len)
+
+    queries, catalogue = get_dataset(config, train=False)
+        
+    queries_loader = torch.utils.data.DataLoader(
+        queries,
+        batch_size=BATCH_SIZE,
+        shuffle=False,
+        num_workers=DATALOADER_WORKERS,
+        drop_last=True,
+        )
+    catalogue_loader = torch.utils.data.DataLoader(
+        catalogue,
+        batch_size=BATCH_SIZE,
+        shuffle=False,
+        num_workers=DATALOADER_WORKERS,
+        drop_last=True,
+        )
 
     # FUNCIONES DE AUGMENTATION
     image_transform = T.Compose([
@@ -105,7 +120,7 @@ if __name__ == '__main__':
 
     # optimizador
     # TODO agregar cosine schedule al learning rate
-    opt = torch.optim.Adam(learner.parameters(), lr=3e-4)
+    opt = torch.optim.Adam(learner.parameters(), lr=1e-4)
     # opt = torch.optim.SGD(learner.parameters(), lr=0.001, momentum=0.9)
     # opt = LARS(optimizer=base_optimizer, eps=1e-8, trust_coef=0.001)
 
@@ -113,42 +128,28 @@ if __name__ == '__main__':
     learner = learner.to(device)
     if LAST_EPOCH == 0:
         if CONTINUE == 0:
-            validation = EvalMAP(config, device, learner)
-            max_map = validation.compute_map(k=-1)
-            max_map5 = validation.compute_map(k=5)
+            max_map = eval_model(learner, device, catalogue_loader, queries_loader, k=-1)
             print(f"mAP del modelo inicial: {max_map}")
-            print(f"mAP@5 del modelo inicial: {max_map5}")
-            torch.save(learner.state_dict(), BEST_MAP5_CHECKPOINT_PATH)
             torch.save(learner.state_dict(), BEST_MAP_CHECKPOINT_PATH)
             torch.save(learner.state_dict(), LAST_CHECKPOINT_PATH)
         elif CONTINUE == 1:
             STARTING_CHECKPOINT = config['STARTING_CHECKPOINT']
             learner.load_state_dict(torch.load(STARTING_CHECKPOINT, map_location=torch.device(device)), strict=False)
-            validation = EvalMAP(config, device, learner)
-            max_map = validation.compute_map(k=-1)
-            max_map5 = validation.compute_map(k=5)
+            max_map = eval_model(learner, device, catalogue_loader, queries_loader, k=-1)
             print(f"mAP del checkpoint inicial: {max_map}")
-            print(f"mAP@5 del checkpoint inicial: {max_map5}")
     else:
         learner.load_state_dict(torch.load(BEST_MAP_CHECKPOINT_PATH, map_location=torch.device(device)), strict=False)
-        validation = EvalMAP(config, device, learner)
-        max_map = validation.compute_map(k=-1)
-        learner.load_state_dict(torch.load(BEST_MAP5_CHECKPOINT_PATH, map_location=torch.device(device)), strict=False)
-        validation = EvalMAP(config, device, learner)
-        max_map5 = validation.compute_map(k=5)
+        max_map = eval_model(learner, device, catalogue_loader, queries_loader, k=-1)
         learner.load_state_dict(torch.load(LAST_CHECKPOINT_PATH, map_location=torch.device(device)), strict=False)
-        validation = EvalMAP(config, device, learner)
-        last_map = validation.compute_map(k=-1)
-        last_map5 = validation.compute_map(k=5)
+        last_map = eval_model(learner, device, catalogue_loader, queries_loader, k=-1)
         print(f"mAP del último checkpoint: {last_map} - mAP máxima alcanzada: {max_map}")
-        print(f"mAP@5 del último checkpoint: {last_map5} - mAP@5 máxima alcanzada: {max_map5}")
-    learner.train()
     with warnings.catch_warnings():
         warnings.filterwarnings('ignore')
         running_loss = np.array([], dtype=np.float32)
         for epoch in range(LAST_EPOCH, TOTAL_EPOCHS):
             i = 0
             t0 = time.time()
+            learner.train()
             for images in train_loader:
                 loss = learner(images)
                 opt.zero_grad()
@@ -167,16 +168,8 @@ if __name__ == '__main__':
                 i += 1
             print_epoch_time_and_loss(t0, epoch, np.mean(running_loss))
             # evaluamos el modelo con la data de test
-            validation = EvalMAP(config, device, learner)
-            current_map = validation.compute_map(k=-1)
-            current_map5 = validation.compute_map(k=5)
-            if current_map5 > max_map5:
-                max_map5 = current_map5
-                torch.save(learner.state_dict(), BEST_MAP5_CHECKPOINT_PATH)
-                print(f"nueva mAP@5 máxima del modelo: {max_map5}")
-                configp['MODEL']['BEST_MAP5_EPOCH'] = str(epoch + 1)
-            else:
-                print(f"mAP@5 actual del modelo: {current_map5} - mAP@5 máxima del modelo: {max_map5}")
+            learner.eval()
+            current_map = eval_model(learner, device, catalogue_loader, queries_loader, k=-1)
             if current_map > max_map:
                 max_map = current_map
                 torch.save(learner.state_dict(), BEST_MAP_CHECKPOINT_PATH)
@@ -190,4 +183,3 @@ if __name__ == '__main__':
             with open(args.config, 'w') as configfile:
                 configp.write(configfile)
             sys.stdout.write('\n')
-    
