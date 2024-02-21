@@ -15,7 +15,7 @@ from transforms.custom_transforms import BatchTransform, SelectFromTuple, PadToS
 # from torchlars import LARS
 from eval_2 import eval_model
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-os.environ['CUDA_VISIBLE_DEVICES'] = '1'
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 
 
 def print_epoch_time_and_loss(t0, epoch, loss):
@@ -76,6 +76,7 @@ if __name__ == '__main__':
     image_transform = T.Compose([
         BatchTransform(SelectFromTuple(1)),
         BatchTransform(lambda x: x.permute(2, 0, 1)),
+        BatchTransform(PadToSquare(255)),
         BatchTransform(T.Resize((CROP_SIZE, CROP_SIZE))),
         BatchTransform(T.RandomResizedCrop(CROP_SIZE, scale=(0.8, 1), ratio=(1, 1))),
         BatchTransform(T.RandomHorizontalFlip()),
@@ -87,6 +88,7 @@ if __name__ == '__main__':
     sketch_transform = T.Compose([
         BatchTransform(SelectFromTuple(0)),
         BatchTransform(lambda x: x.permute(2, 0, 1)),
+        BatchTransform(PadToSquare(255)),
         BatchTransform(T.Resize((CROP_SIZE, CROP_SIZE))),
         BatchTransform(RandomLineSkip(prob=0.5, skip=0.1)),
         BatchTransform(RandomRotation(prob=0.5, angle=30)),
@@ -120,7 +122,7 @@ if __name__ == '__main__':
 
     # optimizador
     # TODO agregar cosine schedule al learning rate
-    opt = torch.optim.Adam(learner.parameters(), lr=1e-4)
+    opt = torch.optim.Adam(learner.parameters(), lr=3e-4)
     # opt = torch.optim.SGD(learner.parameters(), lr=0.001, momentum=0.9)
     # opt = LARS(optimizer=base_optimizer, eps=1e-8, trust_coef=0.001)
 
@@ -163,8 +165,8 @@ if __name__ == '__main__':
                 elapsed_timedelta = elapsed_timedelta - \
                     datetime.timedelta(microseconds=elapsed_timedelta.microseconds)
                 elapsed_time_formatted = str(elapsed_timedelta)
-                # sys.stdout.write(
-                #     '\rEpoch {}, batch {} - loss {:.4f} - elapsed time {}'.format(epoch+1, i+1, np.mean(running_loss), elapsed_time_formatted))
+                sys.stdout.write(
+                    '\rEpoch {}, batch {} - loss {:.4f} - elapsed time {}'.format(epoch+1, i+1, np.mean(running_loss), elapsed_time_formatted))
                 i += 1
             print_epoch_time_and_loss(t0, epoch, np.mean(running_loss))
             # evaluamos el modelo con la data de test

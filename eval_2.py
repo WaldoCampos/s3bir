@@ -45,7 +45,16 @@ def compute_map(similarity_matrix, catalogue_labels, queries_labels, k=5):
         return mAP
     
 
-def create_file(similarity_matrix, catalogue_labels, queries_labels, k=-1):
+def create_file(model, device, catalogue_dataloader, queries_dataloader, k):
+        queries_embeddings, queries_labels = get_embeddings_labels(model, queries_dataloader, device, 'target')
+        catalogue_embeddings, catalogue_labels = get_embeddings_labels(model, catalogue_dataloader, device, 'online')
+
+        queries_embeddings = queries_embeddings / np.linalg.norm(queries_embeddings, ord=2, axis=1, keepdims=True)
+        catalogue_embeddings = catalogue_embeddings / np.linalg.norm(catalogue_embeddings, ord=2, axis=1, keepdims=True)
+
+        similarity_matrix = np.matmul(queries_embeddings, catalogue_embeddings.T)
+        final_metric = compute_map(similarity_matrix, catalogue_labels, queries_labels, k=k)
+        print(f"mAP del modelo: {final_metric}")
         filename = '/home/wcampos/search_output.txt'
         file_out = open(filename, 'w')
         sorted_pos = np.argsort(-similarity_matrix, axis=1)
@@ -54,7 +63,7 @@ def create_file(similarity_matrix, catalogue_labels, queries_labels, k=-1):
             file_out.write(f"{queries_labels[i]}")
             predict = catalogue_labels[sorted_pos_limited[i,:]]
             for p in predict:
-                file_out.write(f", {p}")
+                file_out.write(f",{p}")
             file_out.write("\n")
         file_out.close()
 
@@ -90,7 +99,7 @@ if __name__ == '__main__':
     torch.cuda.empty_cache()
     learner = get_model(config)
 
-    learner.load_state_dict(torch.load(LAST_CHECKPOINT_PATH, map_location=torch.device(device)), strict=False)
+    learner.load_state_dict(torch.load(BEST_MAP_CHECKPOINT_PATH, map_location=torch.device(device)), strict=False)
     BATCH_SIZE = config.getint('BATCH_SIZE')
     CROP_SIZE = config.getint('CROP_SIZE')
     EPOCHS = config.getint('EPOCHS')
@@ -120,3 +129,4 @@ if __name__ == '__main__':
     k=-1
     final_metric = eval_model(learner, device, catalogue_loader, queries_loader, k)
     print(f"\n{'mAP' if k==-1 else 'mAP@'+str(k)} del modelo: {final_metric}")
+    create_file(learner, device, catalogue_loader, queries_loader, k)

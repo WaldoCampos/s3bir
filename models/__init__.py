@@ -80,6 +80,18 @@ def get_dataset(model_config, train=True):
                     num_workers=model_config.getint('DATALOADER_WORKERS'),
                     drop_last=True,
                 )
+            elif ds_name == 'FLICKR':
+                ds = tfds.load('tfds_flickr25k', split='train', as_supervised=True)
+                ds = list(ds.as_numpy_iterator())
+                ds_len = len(ds)
+                train_loader = torch.utils.data.DataLoader(
+                    ds,
+                    batch_size=model_config.getint('BATCH_SIZE'),
+                    shuffle=True,
+                    collate_fn=lambda x: [(torch.from_numpy(a), torch.from_numpy(b)) for a, b, _ in x],
+                    num_workers=model_config.getint('DATALOADER_WORKERS'),
+                    drop_last=True,
+                )
             return train_loader, ds_len
         else:
             if ds_name == 'SKETCHY':
@@ -106,6 +118,27 @@ def get_dataset(model_config, train=True):
                 image_transform = T.Compose([
                     lambda x: torch.from_numpy(x),
                     lambda x: x.permute(2, 0, 1),
+                    T.Resize((CROP_SIZE, CROP_SIZE)),
+                    lambda x: x / 255
+                ])
+                sketch_transform = T.Compose([
+                    lambda x: torch.from_numpy(x),
+                    lambda x: x.permute(2, 0, 1),
+                    PadToSquare(255),
+                    T.Resize((CROP_SIZE, CROP_SIZE)),
+                    lambda x: x / 255
+                ])
+                queries = [(sketch_transform(a), b) for a,b in queries]
+                catalogue = [(image_transform(a), b) for a,b in catalogue]
+            elif ds_name == 'FLICKR':
+                queries = tfds.load('tfds_flickr15k', split='sketches', as_supervised=True)
+                catalogue = tfds.load('tfds_flickr15k', split='photos', as_supervised=True)
+                queries = list(queries.as_numpy_iterator())
+                catalogue = list(catalogue.as_numpy_iterator())
+                image_transform = T.Compose([
+                    lambda x: torch.from_numpy(x),
+                    lambda x: x.permute(2, 0, 1),
+                    PadToSquare(255),
                     T.Resize((CROP_SIZE, CROP_SIZE)),
                     lambda x: x / 255
                 ])

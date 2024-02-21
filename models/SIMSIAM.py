@@ -19,8 +19,9 @@ class SIMSIAM(nn.Module):
             self,
             encoder,
             image_size,
-            projection_size = 256,
-            projection_hidden_size = 4096,
+            output_size = 2048,
+            projection_hidden_size = 2048,
+            prediction_hidden_size = 512,
             augment_fn = None,
             augment_fn2 = None,
     ):
@@ -28,10 +29,24 @@ class SIMSIAM(nn.Module):
         device = get_module_device(encoder)
         # self.encoder = NetWrapper(net, layer=hidden_layer)
         self.encoder = encoder
-
-        dummy = self.encoder(torch.randn(2, 3, image_size, image_size, device=device))
-        self.projector = MLP(dummy.shape[1], projection_size, projection_hidden_size)
-        self.predictor = MLP(projection_size, projection_size, projection_hidden_size)
+        with torch.no_grad():
+            dummy = self.encoder(torch.randn(2, 3, image_size, image_size, device=device))
+        self.projector = torch.nn.Sequential(
+            torch.nn.Linear(dummy.shape[1], projection_hidden_size),
+            nn.BatchNorm1d(projection_hidden_size),
+            nn.ReLU(inplace=True),
+            torch.nn.Linear(projection_hidden_size, projection_hidden_size),
+            nn.BatchNorm1d(projection_hidden_size),
+            nn.ReLU(inplace=True),
+            torch.nn.Linear(projection_hidden_size, output_size),
+            nn.BatchNorm1d(output_size)
+        )
+        self.predictor = torch.nn.Sequential(
+            torch.nn.Linear(output_size, prediction_hidden_size),
+            nn.BatchNorm1d(prediction_hidden_size),
+            nn.ReLU(inplace=True),
+            torch.nn.Linear(prediction_hidden_size, output_size),
+        )
 
         self.to(device)
 
@@ -40,7 +55,8 @@ class SIMSIAM(nn.Module):
         self.augment2 = default(augment_fn2, self.augment1)
 
         # send a mock image tensor to instantiate singleton parameters
-        self.forward(torch.randn(2, 3, image_size, image_size, device=device))
+        with torch.no_grad():
+            self.forward(torch.randn(2, 3, image_size, image_size, device=device))
 
     def forward(
             self,

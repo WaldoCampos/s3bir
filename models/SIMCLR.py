@@ -59,8 +59,8 @@ class SIMCLR(nn.Module):
             self,
             encoder,
             image_size,
-            projection_size = 256,
-            projection_hidden_size = 4096,
+            projection_size = 2048,
+            projection_hidden_size = 2048,
             augment_fn = None,
             augment_fn2 = None,
     ):
@@ -68,8 +68,9 @@ class SIMCLR(nn.Module):
         device = get_module_device(encoder)
         # self.online_encoder = NetWrapper(net, layer=hidden_layer)
         self.encoder = encoder
-
-        dummy = self.encoder(torch.randn(2, 3, image_size, image_size, device=device))
+        
+        with torch.no_grad():
+            dummy = self.encoder(torch.randn(2, 3, image_size, image_size, device=device))
         self.projector = MLP(dummy.shape[1], projection_size, projection_hidden_size)
         
         self.to(device)
@@ -79,7 +80,8 @@ class SIMCLR(nn.Module):
         self.augment2 = default(augment_fn2, self.augment1)
 
         # send a mock image tensor to instantiate singleton parameters
-        self.forward(torch.randn(2, 3, image_size, image_size, device=device))
+        with torch.no_grad():
+            self.forward(torch.randn(2, 3, image_size, image_size, device=device))
 
     def forward(
             self,

@@ -199,7 +199,9 @@ class DINO(nn.Module):
         self.augment2 = default(augment_fn2, self.augment1)
 
         # send a mock image tensor to instantiate singleton parameters
-        # self.forward(torch.randn(2, 3, image_size, image_size, device=device))
+        self.forward(torch.randn(2, 3, image_size, image_size, device=device))
+        # reset C value
+        self.C = None
 
     def loss_fn(self, t, s):
         t = t.detach()
