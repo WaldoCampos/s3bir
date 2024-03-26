@@ -95,7 +95,23 @@ def get_dataset(model_config, train=True):
             return train_loader, ds_len
         else:
             if ds_name == 'SKETCHY':
-                ds = tfds.load('tfds_sketchy', split='validation', as_supervised=True)
+                ds = tfds.load('tfds_sketchy', split='validation_known', as_supervised=True)
+                ds = list(ds.as_numpy_iterator())
+                image_transform = T.Compose([
+                    lambda x: torch.from_numpy(x),
+                    lambda x: x.permute(2, 0, 1),
+                    T.Resize((CROP_SIZE, CROP_SIZE)),
+                    lambda x: x / 255
+                ])
+                sketch_transform = T.Compose([
+                    lambda x: torch.from_numpy(x),
+                    lambda x: x.permute(2, 0, 1),
+                    T.Resize((CROP_SIZE, CROP_SIZE)),
+                    lambda x: x / 255
+                ])
+                queries, catalogue = delete_duplicates_and_split(ds, sketch_transform, image_transform)
+            elif ds_name == 'SKETCHY_UNKNOWN':
+                ds = tfds.load('tfds_sketchy', split='validation_unknown', as_supervised=True)
                 ds = list(ds.as_numpy_iterator())
                 image_transform = T.Compose([
                     lambda x: torch.from_numpy(x),
