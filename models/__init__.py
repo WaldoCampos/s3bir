@@ -2,6 +2,7 @@ from .BYOL2 import BYOL
 from .SIMSIAM import SIMSIAM
 from .SIMCLR import SIMCLR
 from .DINO import DINO
+from .COS_ADAPTER import COS_ADAPTER
 from .common import NetWrapper
 from transforms.custom_transforms import PadToSquare
 import torch
@@ -36,6 +37,8 @@ def get_backbone(backbone_name):
     if backbone_name == 'VITB16':
         backbone = torchvision.models.vit_b_16(weights='IMAGENET1K_V1')
         # backbone.heads = torch.nn.Identity()
+    if backbone_name == 'DINOV2':
+        backbone = torch.hub.load('facebookresearch/dinov2', 'dinov2_vits14')
     return backbone
 
 def get_model(model_config):
@@ -48,6 +51,14 @@ def get_model(model_config):
         model = SIMCLR(backbone, model_config.getint('CROP_SIZE'))
     if model_config['FRAMEWORK'] == 'DINO':
         model = DINO(backbone, model_config.getint('CROP_SIZE'))
+    if model_config['FRAMEWORK'] == 'COS_ADAPTER':
+        model = COS_ADAPTER(backbone, model_config.getint('CROP_SIZE'))
+    if model_config['FRAMEWORK'] == 'INVERTED_COS_ADAPTER':
+        model = COS_ADAPTER(backbone, model_config.getint('CROP_SIZE'), mode='inverted')
+    if model_config['FRAMEWORK'] == 'DOUBLE_COS_ADAPTER':
+        model = COS_ADAPTER(backbone, model_config.getint('CROP_SIZE'), mode='double')
+    if model_config['FRAMEWORK'] == 'RESIDUAL_DOUBLE_COS_ADAPTER':
+        model = COS_ADAPTER(backbone, model_config.getint('CROP_SIZE'), mode='residual_double')
     return model
 
 def get_dataset(model_config, train=True):
@@ -57,7 +68,7 @@ def get_dataset(model_config, train=True):
         CROP_SIZE = model_config.getint('CROP_SIZE')
         if train == True:
             if ds_name == 'SKETCHY':
-                ds = tfds.load('tfds_sketchy', split='train', as_supervised=True)
+                ds = tfds.load('tfds_sketchy', split='train', as_supervised=True, data_dir='/home/wcampos/data/tensorflow_datasets/')
                 ds = list(ds.as_numpy_iterator())
                 ds_len = len(ds)
                 train_loader = torch.utils.data.DataLoader(
@@ -69,7 +80,7 @@ def get_dataset(model_config, train=True):
                     drop_last=True,
                 )
             elif ds_name == 'ECOMMERCE':
-                ds = tfds.load('tfds_ecommerce_train', split='pidinet', as_supervised=True)
+                ds = tfds.load('tfds_ecommerce_train', split='pidinet', as_supervised=True, data_dir='/home/wcampos/data/tensorflow_datasets/')
                 ds = list(ds.as_numpy_iterator())
                 ds_len = len(ds)
                 train_loader = torch.utils.data.DataLoader(
@@ -81,7 +92,7 @@ def get_dataset(model_config, train=True):
                     drop_last=True,
                 )
             elif ds_name == 'FLICKR':
-                ds = tfds.load('tfds_flickr25k', split='train', as_supervised=True)
+                ds = tfds.load('tfds_flickr25k', split='train', as_supervised=True, data_dir='/home/wcampos/data/tensorflow_datasets/')
                 ds = list(ds.as_numpy_iterator())
                 ds_len = len(ds)
                 train_loader = torch.utils.data.DataLoader(
@@ -95,7 +106,7 @@ def get_dataset(model_config, train=True):
             return train_loader, ds_len
         else:
             if ds_name == 'SKETCHY':
-                ds = tfds.load('tfds_sketchy', split='validation_known', as_supervised=True)
+                ds = tfds.load('tfds_sketchy', split='validation_known', as_supervised=True, data_dir='/home/wcampos/data/tensorflow_datasets/')
                 ds = list(ds.as_numpy_iterator())
                 image_transform = T.Compose([
                     lambda x: torch.from_numpy(x),
@@ -111,7 +122,7 @@ def get_dataset(model_config, train=True):
                 ])
                 queries, catalogue = delete_duplicates_and_split(ds, sketch_transform, image_transform)
             elif ds_name == 'SKETCHY_UNKNOWN':
-                ds = tfds.load('tfds_sketchy', split='validation_unknown', as_supervised=True)
+                ds = tfds.load('tfds_sketchy', split='validation_unknown', as_supervised=True, data_dir='/home/wcampos/data/tensorflow_datasets/')
                 ds = list(ds.as_numpy_iterator())
                 image_transform = T.Compose([
                     lambda x: torch.from_numpy(x),
@@ -127,8 +138,8 @@ def get_dataset(model_config, train=True):
                 ])
                 queries, catalogue = delete_duplicates_and_split(ds, sketch_transform, image_transform)
             elif ds_name == 'ECOMMERCE':
-                queries = tfds.load('tfds_ecommerce_valid', split='sketches', as_supervised=True)
-                catalogue = tfds.load('tfds_ecommerce_valid', split='photos', as_supervised=True)
+                queries = tfds.load('tfds_ecommerce_valid', split='sketches', as_supervised=True, data_dir='/home/wcampos/data/tensorflow_datasets/')
+                catalogue = tfds.load('tfds_ecommerce_valid', split='photos', as_supervised=True, data_dir='/home/wcampos/data/tensorflow_datasets/')
                 queries = list(queries.as_numpy_iterator())
                 catalogue = list(catalogue.as_numpy_iterator())
                 image_transform = T.Compose([
@@ -147,8 +158,8 @@ def get_dataset(model_config, train=True):
                 queries = [(sketch_transform(a), b) for a,b in queries]
                 catalogue = [(image_transform(a), b) for a,b in catalogue]
             elif ds_name == 'FLICKR':
-                queries = tfds.load('tfds_flickr15k', split='sketches', as_supervised=True)
-                catalogue = tfds.load('tfds_flickr15k', split='photos', as_supervised=True)
+                queries = tfds.load('tfds_flickr15k', split='sketches', as_supervised=True, data_dir='/home/wcampos/data/tensorflow_datasets/')
+                catalogue = tfds.load('tfds_flickr15k', split='photos', as_supervised=True, data_dir='/home/wcampos/data/tensorflow_datasets/')
                 queries = list(queries.as_numpy_iterator())
                 catalogue = list(catalogue.as_numpy_iterator())
                 image_transform = T.Compose([
