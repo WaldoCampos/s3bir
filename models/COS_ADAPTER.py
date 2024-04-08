@@ -18,6 +18,29 @@ def loss_fn(x, y):
     y = F.normalize(y, dim=-1, p=2)
     return 2 - 2 * (x * y).sum(dim=-1)
 
+def CE_loss(z1, z2, temperature=0.5):
+    z1 = F.normalize(z1, dim=1)
+    z2 = F.normalize(z2, dim=1)
+    N, Z = z1.shape 
+    device = z1.device 
+    representations = torch.cat([z1, z2], dim=0)
+    similarity_matrix = F.cosine_similarity(representations.unsqueeze(1), representations.unsqueeze(0), dim=-1)
+    l_pos = torch.diag(similarity_matrix, N)
+    r_pos = torch.diag(similarity_matrix, -N)
+    positives = torch.cat([l_pos, r_pos]).view(2 * N, 1)
+    diag = torch.eye(2*N, dtype=torch.bool, device=device)
+    diag[N:,:N] = diag[:N,N:] = diag[:N,:N]
+
+    negatives = similarity_matrix[~diag].view(2*N, -1)
+
+    logits = torch.cat([positives, negatives], dim=1)
+    logits /= temperature
+
+    labels = torch.zeros(2*N, device=device, dtype=torch.int64)
+
+    loss = F.cross_entropy(logits, labels, reduction='sum')
+    return loss / (2 * N)
+
 # main class
 class COS_ADAPTER(nn.Module):
     def __init__(
@@ -43,7 +66,7 @@ class COS_ADAPTER(nn.Module):
             nn.ReLU(),
             nn.Linear(2048, dummy.shape[1])
         )
-        if self.mode in ['double', 'residual_double']:
+        if self.mode in ['double', 'residual_double', 'double_ce_adapter']:
             self.sketch_adapter = nn.Sequential(
                 nn.Linear(dummy.shape[1], 2048),
                 nn.BatchNorm1d(2048),
@@ -80,7 +103,7 @@ class COS_ADAPTER(nn.Module):
                 x1 = self.encoder(x1)
                 x2 = self.encoder(x2)
             x1 = self.adapter(x1)
-        if self.mode == 'double':
+        elif self.mode in ['double', 'double_ce_adapter']:
             if return_embedding == 'online':
                 return self.adapter(self.encoder(x))
             elif return_embedding == 'target':
@@ -91,7 +114,7 @@ class COS_ADAPTER(nn.Module):
                 x2 = self.encoder(x2)
             x1 = self.adapter(x1)
             x2 = self.sketch_adapter(x2)
-        if self.mode == 'residual_double':
+        elif self.mode == 'residual_double':
             if return_embedding == 'online':
                 x = self.encoder(x)
                 return x + self.adapter(x)
@@ -114,5 +137,9 @@ class COS_ADAPTER(nn.Module):
                 x1 = self.encoder(x1)
                 x2 = self.encoder(x2)
             x1 = self.adapter(x1)
-        loss = loss_fn(x1, x2)
-        return loss.mean()
+        if self.mode in ['ce_adapter', 'double_ce_adapter']:
+            loss = CE_loss(x1, x2)
+        else:
+            loss = loss_fn(x1, x2)
+            loss = loss.mean()
+        return loss

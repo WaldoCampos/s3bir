@@ -12,6 +12,7 @@ import tensorflow as tf
 import tensorflow as tf
 import tensorflow_datasets as tfds
 import hashlib
+import os
 
 def delete_duplicates_and_split(pairs_dataset, sketch_transform, photo_transform):
     unique_sketches = set()
@@ -59,11 +60,14 @@ def get_model(model_config):
         model = COS_ADAPTER(backbone, model_config.getint('CROP_SIZE'), mode='double')
     if model_config['FRAMEWORK'] == 'RESIDUAL_DOUBLE_COS_ADAPTER':
         model = COS_ADAPTER(backbone, model_config.getint('CROP_SIZE'), mode='residual_double')
+    if model_config['FRAMEWORK'] == 'CE_ADAPTER':
+        model = COS_ADAPTER(backbone, model_config.getint('CROP_SIZE'), mode='ce_adapter')
+    if model_config['FRAMEWORK'] == 'DOUBLE_CE_ADAPTER':
+        model = COS_ADAPTER(backbone, model_config.getint('CROP_SIZE'), mode='double_ce_adapter')
     return model
 
 def get_dataset(model_config, train=True):
     with tf.device('/CPU:0'):
-        # with tf.device('/CPU:0'):
         ds_name = model_config['DATASET']
         CROP_SIZE = model_config.getint('CROP_SIZE')
         if train == True:
