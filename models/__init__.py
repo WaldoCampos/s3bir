@@ -72,7 +72,7 @@ def get_dataset(model_config, train=True):
         CROP_SIZE = model_config.getint('CROP_SIZE')
         if train == True:
             if ds_name == 'SKETCHY':
-                ds = tfds.load('tfds_sketchy', split='train', as_supervised=True, data_dir='/home/wcampos/data/tensorflow_datasets/')
+                ds = tfds.load('tfds_sketchy', split='train', as_supervised=True, data_dir='/home/wcampos/tensorflow_datasets/')
                 ds = list(ds.as_numpy_iterator())
                 ds_len = len(ds)
                 train_loader = torch.utils.data.DataLoader(
@@ -84,7 +84,7 @@ def get_dataset(model_config, train=True):
                     drop_last=True,
                 )
             elif ds_name == 'ECOMMERCE':
-                ds = tfds.load('tfds_ecommerce_train', split='pidinet', as_supervised=True, data_dir='/home/wcampos/data/tensorflow_datasets/')
+                ds = tfds.load('tfds_ecommerce_train', split='pidinet', as_supervised=True, data_dir='/home/wcampos/tensorflow_datasets/')
                 ds = list(ds.as_numpy_iterator())
                 ds_len = len(ds)
                 train_loader = torch.utils.data.DataLoader(
@@ -96,7 +96,7 @@ def get_dataset(model_config, train=True):
                     drop_last=True,
                 )
             elif ds_name == 'FLICKR':
-                ds = tfds.load('tfds_flickr25k', split='train', as_supervised=True, data_dir='/home/wcampos/data/tensorflow_datasets/')
+                ds = tfds.load('tfds_flickr25k', split='train', as_supervised=True, data_dir='/home/wcampos/tensorflow_datasets/')
                 ds = list(ds.as_numpy_iterator())
                 ds_len = len(ds)
                 train_loader = torch.utils.data.DataLoader(
@@ -110,7 +110,7 @@ def get_dataset(model_config, train=True):
             return train_loader, ds_len
         else:
             if ds_name == 'SKETCHY':
-                ds = tfds.load('tfds_sketchy', split='validation_known', as_supervised=True, data_dir='/home/wcampos/data/tensorflow_datasets/')
+                ds = tfds.load('tfds_sketchy', split='validation_known', as_supervised=True, data_dir='/home/wcampos/tensorflow_datasets/')
                 ds = list(ds.as_numpy_iterator())
                 image_transform = T.Compose([
                     lambda x: torch.from_numpy(x),
@@ -126,7 +126,7 @@ def get_dataset(model_config, train=True):
                 ])
                 queries, catalogue = delete_duplicates_and_split(ds, sketch_transform, image_transform)
             elif ds_name == 'SKETCHY_UNKNOWN':
-                ds = tfds.load('tfds_sketchy', split='validation_unknown', as_supervised=True, data_dir='/home/wcampos/data/tensorflow_datasets/')
+                ds = tfds.load('tfds_sketchy', split='validation_unknown', as_supervised=True, data_dir='/home/wcampos/tensorflow_datasets/')
                 ds = list(ds.as_numpy_iterator())
                 image_transform = T.Compose([
                     lambda x: torch.from_numpy(x),
@@ -142,8 +142,8 @@ def get_dataset(model_config, train=True):
                 ])
                 queries, catalogue = delete_duplicates_and_split(ds, sketch_transform, image_transform)
             elif ds_name == 'ECOMMERCE':
-                queries = tfds.load('tfds_ecommerce_valid', split='sketches', as_supervised=True, data_dir='/home/wcampos/data/tensorflow_datasets/')
-                catalogue = tfds.load('tfds_ecommerce_valid', split='photos', as_supervised=True, data_dir='/home/wcampos/data/tensorflow_datasets/')
+                queries = tfds.load('tfds_ecommerce_valid', split='sketches', as_supervised=True, data_dir='/home/wcampos/tensorflow_datasets/')
+                catalogue = tfds.load('tfds_ecommerce_valid', split='photos', as_supervised=True, data_dir='/home/wcampos/tensorflow_datasets/')
                 queries = list(queries.as_numpy_iterator())
                 catalogue = list(catalogue.as_numpy_iterator())
                 image_transform = T.Compose([
@@ -162,8 +162,8 @@ def get_dataset(model_config, train=True):
                 queries = [(sketch_transform(a), b) for a,b in queries]
                 catalogue = [(image_transform(a), b) for a,b in catalogue]
             elif ds_name == 'FLICKR':
-                queries = tfds.load('tfds_flickr15k', split='sketches', as_supervised=True, data_dir='/home/wcampos/data/tensorflow_datasets/')
-                catalogue = tfds.load('tfds_flickr15k', split='photos', as_supervised=True, data_dir='/home/wcampos/data/tensorflow_datasets/')
+                queries = tfds.load('tfds_flickr15k', split='sketches', as_supervised=True, data_dir='/home/wcampos/tensorflow_datasets/')
+                catalogue = tfds.load('tfds_flickr15k', split='photos', as_supervised=True, data_dir='/home/wcampos/tensorflow_datasets/')
                 queries = list(queries.as_numpy_iterator())
                 catalogue = list(catalogue.as_numpy_iterator())
                 image_transform = T.Compose([

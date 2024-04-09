@@ -135,12 +135,8 @@ if __name__ == '__main__':
     learner = get_model(config)
 
     learner.load_state_dict(torch.load(LAST_CHECKPOINT_PATH, map_location=torch.device(device)), strict=False)
-    validation1 = EvalMAP(config, device, learner)
-    learner.load_state_dict(torch.load(LAST_CHECKPOINT_PATH, map_location=torch.device(device)), strict=False)
-    validation2 = EvalMAP(config, device, learner)
-    learner.load_state_dict(torch.load(LAST_CHECKPOINT_PATH, map_location=torch.device(device)), strict=False)
-    validation3 = EvalMAP(config, device, learner)
+    validation = EvalMAP(config, device, learner)
     k = -1
-    final_metric = validation3.compute_map(k=k)
+    final_metric = validation.compute_map(k=k)
 
     print(f"\n{'mAP' if k==-1 else 'mAP@'+str(k)} del modelo: {final_metric}")

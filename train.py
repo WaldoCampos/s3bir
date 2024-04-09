@@ -15,7 +15,7 @@ from transforms.custom_transforms import BatchTransform, SelectFromTuple, PadToS
 # from torchlars import LARS
 from eval import EvalMAP
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
+os.environ['CUDA_VISIBLE_DEVICES'] = '1'
 
 
 def print_epoch_time_and_loss(t0, epoch, loss):
