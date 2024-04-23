@@ -66,7 +66,7 @@ class COS_ADAPTER(nn.Module):
             nn.ReLU(),
             nn.Linear(2048, dummy.shape[1])
         )
-        if self.mode in ['double', 'residual_double', 'double_ce_adapter']:
+        if self.mode in ['double', 'residual_double', 'double_ce_adapter', 'residual_double_ce_adapter']:
             self.sketch_adapter = nn.Sequential(
                 nn.Linear(dummy.shape[1], 2048),
                 nn.BatchNorm1d(2048),
@@ -114,7 +114,7 @@ class COS_ADAPTER(nn.Module):
                 x2 = self.encoder(x2)
             x1 = self.adapter(x1)
             x2 = self.sketch_adapter(x2)
-        elif self.mode == 'residual_double':
+        elif self.mode in ['residual_double', 'residual_double_ce_adapter']:
             if return_embedding == 'online':
                 x = self.encoder(x)
                 return x + self.adapter(x)
@@ -127,6 +127,16 @@ class COS_ADAPTER(nn.Module):
                 x2 = self.encoder(x2)
             x1 = x1 + self.adapter(x1)
             x2 = x2 + self.sketch_adapter(x2)
+        elif self.mode == 'without_adapter':
+            if return_embedding == 'online':
+                return self.encoder(x)
+            elif return_embedding == 'target':
+                return self.encoder(x)
+            x1, x2 = self.augment1(x), self.augment2(x)
+            with torch.no_grad():
+                x1 = self.encoder(x1)
+                x2 = self.encoder(x2)
+            x1 = self.adapter(x1)
         else: # this is the normal adapter case, online branch processes photos with the adapter
             if return_embedding == 'online':
                 return self.adapter(self.encoder(x))
@@ -137,7 +147,7 @@ class COS_ADAPTER(nn.Module):
                 x1 = self.encoder(x1)
                 x2 = self.encoder(x2)
             x1 = self.adapter(x1)
-        if self.mode in ['ce_adapter', 'double_ce_adapter']:
+        if self.mode in ['ce_adapter', 'double_ce_adapter', 'residual_double_ce_adapter']:
             loss = CE_loss(x1, x2)
         else:
             loss = loss_fn(x1, x2)

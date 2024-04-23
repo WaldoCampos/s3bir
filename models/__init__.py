@@ -64,6 +64,10 @@ def get_model(model_config):
         model = COS_ADAPTER(backbone, model_config.getint('CROP_SIZE'), mode='ce_adapter')
     if model_config['FRAMEWORK'] == 'DOUBLE_CE_ADAPTER':
         model = COS_ADAPTER(backbone, model_config.getint('CROP_SIZE'), mode='double_ce_adapter')
+    if model_config['FRAMEWORK'] == 'RESIDUAL_DOUBLE_CE_ADAPTER':
+        model = COS_ADAPTER(backbone, model_config.getint('CROP_SIZE'), mode='residual_double_ce_adapter')
+    if model_config['FRAMEWORK'] == 'WITHOUT_ADAPTER':
+        model = COS_ADAPTER(backbone, model_config.getint('CROP_SIZE'), mode='without_adapter')
     return model
 
 def get_dataset(model_config, train=True):
@@ -97,6 +101,18 @@ def get_dataset(model_config, train=True):
                 )
             elif ds_name == 'FLICKR':
                 ds = tfds.load('tfds_flickr25k', split='train', as_supervised=True, data_dir='/home/wcampos/tensorflow_datasets/')
+                ds = list(ds.as_numpy_iterator())
+                ds_len = len(ds)
+                train_loader = torch.utils.data.DataLoader(
+                    ds,
+                    batch_size=model_config.getint('BATCH_SIZE'),
+                    shuffle=True,
+                    collate_fn=lambda x: [(torch.from_numpy(a), torch.from_numpy(b)) for a, b, _ in x],
+                    num_workers=model_config.getint('DATALOADER_WORKERS'),
+                    drop_last=True,
+                )
+            elif ds_name == 'QDEXT':
+                ds = tfds.load('tfds_quickdraw_extended_train', split='train', as_supervised=True, data_dir='/home/wcampos/tensorflow_datasets/')
                 ds = list(ds.as_numpy_iterator())
                 ds_len = len(ds)
                 train_loader = torch.utils.data.DataLoader(
@@ -149,6 +165,7 @@ def get_dataset(model_config, train=True):
                 image_transform = T.Compose([
                     lambda x: torch.from_numpy(x),
                     lambda x: x.permute(2, 0, 1),
+                    PadToSquare(255),
                     T.Resize((CROP_SIZE, CROP_SIZE)),
                     lambda x: x / 255
                 ])
@@ -182,4 +199,37 @@ def get_dataset(model_config, train=True):
                 ])
                 queries = [(sketch_transform(a), b) for a,b in queries]
                 catalogue = [(image_transform(a), b) for a,b in catalogue]
+            elif ds_name == 'QDEXT':
+                queries = tfds.load(
+                    'tfds_quickdraw_extended_valid',
+                    split='sketches_known',
+                    as_supervised=True,
+                    data_dir='/home/wcampos/tensorflow_datasets/')
+                queries = queries.batch(model_config.getint('BATCH_SIZE'))
+                queries = tfds.as_numpy(queries)
+                catalogue = tfds.load(
+                    'tfds_quickdraw_extended_valid',
+                    split='photos_known',
+                    as_supervised=True,
+                    data_dir='/home/wcampos/tensorflow_datasets/'
+                    )
+                catalogue = catalogue.batch(model_config.getint('BATCH_SIZE'))
+                catalogue = tfds.as_numpy(catalogue)
+            elif ds_name == 'QDEXT_UNKNOWN':
+                queries = tfds.load(
+                    'tfds_quickdraw_extended_valid',
+                    split='sketches_unknown',
+                    as_supervised=True,
+                    data_dir='/home/wcampos/tensorflow_datasets/'
+                    )
+                queries = queries.batch(model_config.getint('BATCH_SIZE'))
+                queries = tfds.as_numpy(queries)
+                catalogue = tfds.load(
+                    'tfds_quickdraw_extended_valid',
+                    split='photos_unknown_full',
+                    as_supervised=True,
+                    data_dir='/home/wcampos/tensorflow_datasets/'
+                    )
+                catalogue = catalogue.batch(model_config.getint('BATCH_SIZE'))
+                catalogue = tfds.as_numpy(catalogue)
             return queries, catalogue

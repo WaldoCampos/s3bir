@@ -12,17 +12,29 @@ import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 
-def get_embeddings_labels(model, dataloader, device, mode):
+def get_embeddings_labels(model, dataloader, device, mode, QDEXT=False):
     model.eval()
     embeddings = []
     labels = []
+    image_transform = T.Compose([
+                        BatchTransform(lambda x: torch.from_numpy(x)),
+                        BatchTransform(lambda x: x.permute(2, 0, 1)),
+                        BatchTransform(PadToSquare(255)),
+                        BatchTransform(T.Resize((224, 224))),
+                        BatchTransform(lambda x: x / 255),
+                        ListToTensor(device, torch.float),
+                    ])
     for i, (batch, label) in enumerate(dataloader):
+        if QDEXT:
+            batch = image_transform(batch)
+            label = torch.from_numpy(label).to('cpu')
         batch = batch.to(device, dtype=torch.float)
         with torch.no_grad():
             current_embedding = model(batch, return_embedding=mode)
         embeddings.append(current_embedding.to('cpu'))
         labels.append(label)
         # sys.stdout.write('\rBatch {} done.'.format(i))
+    # sys.stdout.write('\n')
     return torch.cat(embeddings, dim=0), torch.cat(labels, dim=0).numpy()
 
 
@@ -50,6 +62,9 @@ class EvalMAP():
         self.CROP_SIZE = config.getint('CROP_SIZE')
         self.EPOCHS = config.getint('EPOCHS')
         self.DATASET = config['DATASET']
+        QDEXT = False
+        if self.DATASET == 'QDEXT':
+            QDEXT = True
         self.DATALOADER_WORKERS = config.getint('DATALOADER_WORKERS')
         self.device = device
 
@@ -74,8 +89,12 @@ class EvalMAP():
 
         self.learner = learner.to(self.device)
 
-        self.queries_embeddings, self.queries_labels = get_embeddings_labels(self.learner, self.queries_loader, self.device, 'target')
-        self.catalogue_embeddings, self.catalogue_labels = get_embeddings_labels(self.learner, self.catalogue_loader, self.device, 'online')
+        if QDEXT:
+            self.queries_embeddings, self.queries_labels = get_embeddings_labels(self.learner, self.queries, self.device, 'target', QDEXT)
+            self.catalogue_embeddings, self.catalogue_labels = get_embeddings_labels(self.learner, self.catalogue, self.device, 'online', QDEXT)
+        else:
+            self.queries_embeddings, self.queries_labels = get_embeddings_labels(self.learner, self.queries_loader, self.device, 'target', QDEXT)
+            self.catalogue_embeddings, self.catalogue_labels = get_embeddings_labels(self.learner, self.catalogue_loader, self.device, 'online', QDEXT)
 
         self.queries_embeddings = self.queries_embeddings / np.linalg.norm(self.queries_embeddings, ord=2, axis=1, keepdims=True)
         self.catalogue_embeddings = self.catalogue_embeddings / np.linalg.norm(self.catalogue_embeddings, ord=2, axis=1, keepdims=True)
@@ -127,14 +146,13 @@ if __name__ == '__main__':
     config = config['MODEL']
     LAST_CHECKPOINT_PATH = config['LAST_CHECKPOINT_PATH']
     BEST_MAP_CHECKPOINT_PATH = config['BEST_MAP_CHECKPOINT_PATH']
-    BEST_MAP5_CHECKPOINT_PATH = config['BEST_MAP5_CHECKPOINT_PATH']
 
     device = args.device
 
     torch.cuda.empty_cache()
     learner = get_model(config)
 
-    learner.load_state_dict(torch.load(LAST_CHECKPOINT_PATH, map_location=torch.device(device)), strict=False)
+    learner.load_state_dict(torch.load(BEST_MAP_CHECKPOINT_PATH, map_location=torch.device(device)), strict=False)
     validation = EvalMAP(config, device, learner)
     k = -1
     final_metric = validation.compute_map(k=k)
