@@ -1,4 +1,3 @@
-import sys
 import argparse
 import configparser
 import torch
@@ -9,6 +8,7 @@ from transforms.custom_transforms import PadToSquare, BatchTransform, SelectFrom
 import tensorflow_datasets as tfds
 import hashlib
 import os
+import sys
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
 
@@ -33,8 +33,8 @@ def get_embeddings_labels(model, dataloader, device, mode, QDEXT=False):
             current_embedding = model(batch, return_embedding=mode)
         embeddings.append(current_embedding.to('cpu'))
         labels.append(label)
-        # sys.stdout.write('\rBatch {} done.'.format(i))
-    # sys.stdout.write('\n')
+        sys.stdout.write('\rBatch {} done.'.format(i))
+    sys.stdout.write('\n')
     return torch.cat(embeddings, dim=0), torch.cat(labels, dim=0).numpy()
 
 
@@ -63,7 +63,7 @@ class EvalMAP():
         self.EPOCHS = config.getint('EPOCHS')
         self.DATASET = config['DATASET']
         QDEXT = False
-        if self.DATASET == 'QDEXT':
+        if self.DATASET in ['QDEXT', 'QDEXT_UNKNOWN']:
             QDEXT = True
         self.DATALOADER_WORKERS = config.getint('DATALOADER_WORKERS')
         self.device = device
@@ -135,7 +135,7 @@ class EvalMAP():
 
 if __name__ == '__main__':
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-    os.environ['CUDA_VISIBLE_DEVICES'] = '1'
+    os.environ['CUDA_VISIBLE_DEVICES'] = '0'
     # Leemos el archivo de config
     parser = argparse.ArgumentParser()
     parser.add_argument('-c', '--config', help='path to the config file', required=True)
@@ -154,7 +154,7 @@ if __name__ == '__main__':
 
     learner.load_state_dict(torch.load(BEST_MAP_CHECKPOINT_PATH, map_location=torch.device(device)), strict=False)
     validation = EvalMAP(config, device, learner)
-    k = -1
+    k = 200
     final_metric = validation.compute_map(k=k)
 
     print(f"\n{'mAP' if k==-1 else 'mAP@'+str(k)} del modelo: {final_metric}")
