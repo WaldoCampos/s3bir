@@ -59,8 +59,6 @@ def delete_duplicates_and_split(pairs_dataset, sketch_transform, photo_transform
 class EvalMAP():
     def __init__(self, config, device, learner):
         self.BATCH_SIZE = config.getint('BATCH_SIZE')
-        self.CROP_SIZE = config.getint('CROP_SIZE')
-        self.EPOCHS = config.getint('EPOCHS')
         self.DATASET = config['DATASET']
         QDEXT = False
         if self.DATASET in ['QDEXT', 'QDEXT_UNKNOWN']:
@@ -77,14 +75,14 @@ class EvalMAP():
             batch_size=self.BATCH_SIZE,
             shuffle=False,
             num_workers=self.DATALOADER_WORKERS,
-            drop_last=True,
+            # drop_last=True,
             )
         self.catalogue_loader = torch.utils.data.DataLoader(
             self.catalogue,
             batch_size=self.BATCH_SIZE,
             shuffle=False,
             num_workers=self.DATALOADER_WORKERS,
-            drop_last=True,
+            # drop_last=True,
             )
 
         self.learner = learner.to(self.device)
@@ -131,6 +129,15 @@ class EvalMAP():
                 file_out.write(f", {p}")
             file_out.write("\n")
         file_out.close()
+
+    def create_rankings(self):
+        sorted_pos = np.argsort(-self.similarity_matrix, axis=1)
+        ordered_relevants = []
+        for i in np.arange(sorted_pos.shape[0]):
+            truth = self.queries_labels[i]
+            predict = self.catalogue_labels[sorted_pos[i,:]]
+            ordered_relevants.append((predict == truth).astype(int))
+        return np.stack(ordered_relevants)
 
 
 if __name__ == '__main__':
