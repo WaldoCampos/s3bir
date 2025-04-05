@@ -92,7 +92,7 @@ class COS_ADAPTER(nn.Module):
             x,
             return_embedding = False,
     ):
-        if self.mode == 'inverted':
+        if self.mode in ['inverted', 'inverted_ce_adapter']:
             # for inverted cosine adapter reverse the inputs and the embedding return
             if return_embedding == 'online':
                 return self.encoder(x)
@@ -103,6 +103,29 @@ class COS_ADAPTER(nn.Module):
                 x1 = self.encoder(x1)
                 x2 = self.encoder(x2)
             x1 = self.adapter(x1)
+        if self.mode in ['residual_inverted', 'residual_inverted_ce_adapter']:
+            # for inverted cosine adapter reverse the inputs and the embedding return
+            if return_embedding == 'online':
+                return self.encoder(x)
+            elif return_embedding == 'target':
+                x = self.encoder(x)
+                return x + self.adapter(x)
+            x2, x1 = self.augment1(x), self.augment2(x)
+            with torch.no_grad():
+                x1 = self.encoder(x1)
+                x2 = self.encoder(x2)
+            x1 = x1 + self.adapter(x1)
+        if self.mode in ['residual', 'residual_ce_adapter']:
+            if return_embedding == 'online':
+                x = self.encoder(x)
+                return x + self.adapter(x)
+            elif return_embedding == 'target':
+                return self.encoder(x)
+            x1, x2 = self.augment1(x), self.augment2(x)
+            with torch.no_grad():
+                x1 = self.encoder(x1)
+                x2 = self.encoder(x2)
+            x1 = x1 + self.adapter(x1)
         elif self.mode in ['double', 'double_ce_adapter']:
             if return_embedding == 'online':
                 return self.adapter(self.encoder(x))
@@ -147,7 +170,7 @@ class COS_ADAPTER(nn.Module):
                 x1 = self.encoder(x1)
                 x2 = self.encoder(x2)
             x1 = self.adapter(x1)
-        if self.mode in ['ce_adapter', 'double_ce_adapter', 'residual_double_ce_adapter']:
+        if self.mode in ['ce_adapter', 'inverted_ce_adapter', 'double_ce_adapter', 'residual_ce_adapter', 'residual_inverted_ce_adapter', 'residual_double_ce_adapter']:
             loss = CE_loss(x1, x2)
         else:
             loss = loss_fn(x1, x2)

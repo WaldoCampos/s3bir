@@ -58,12 +58,22 @@ def get_model(model_config):
         model = COS_ADAPTER(backbone, model_config.getint('CROP_SIZE'), mode='inverted')
     if model_config['FRAMEWORK'] == 'DOUBLE_COS_ADAPTER':
         model = COS_ADAPTER(backbone, model_config.getint('CROP_SIZE'), mode='double')
+    if model_config['FRAMEWORK'] == 'RESIDUAL_COS_ADAPTER':
+        model = COS_ADAPTER(backbone, model_config.getint('CROP_SIZE'), mode='residual')
+    if model_config['FRAMEWORK'] == 'RESIDUAL_INVERTED_COS_ADAPTER':
+        model = COS_ADAPTER(backbone, model_config.getint('CROP_SIZE'), mode='residual_inverted')
     if model_config['FRAMEWORK'] == 'RESIDUAL_DOUBLE_COS_ADAPTER':
         model = COS_ADAPTER(backbone, model_config.getint('CROP_SIZE'), mode='residual_double')
     if model_config['FRAMEWORK'] == 'CE_ADAPTER':
         model = COS_ADAPTER(backbone, model_config.getint('CROP_SIZE'), mode='ce_adapter')
+    if model_config['FRAMEWORK'] == 'INVERTED_CE_ADAPTER':
+        model = COS_ADAPTER(backbone, model_config.getint('CROP_SIZE'), mode='inverted_ce_adapter')
     if model_config['FRAMEWORK'] == 'DOUBLE_CE_ADAPTER':
         model = COS_ADAPTER(backbone, model_config.getint('CROP_SIZE'), mode='double_ce_adapter')
+    if model_config['FRAMEWORK'] == 'RESIDUAL_CE_ADAPTER':
+        model = COS_ADAPTER(backbone, model_config.getint('CROP_SIZE'), mode='residual_ce_adapter')
+    if model_config['FRAMEWORK'] == 'RESIDUAL_INVERTED_CE_ADAPTER':
+        model = COS_ADAPTER(backbone, model_config.getint('CROP_SIZE'), mode='residual_inverted_ce_adapter')
     if model_config['FRAMEWORK'] == 'RESIDUAL_DOUBLE_CE_ADAPTER':
         model = COS_ADAPTER(backbone, model_config.getint('CROP_SIZE'), mode='residual_double_ce_adapter')
     if model_config['FRAMEWORK'] == 'WITHOUT_ADAPTER':
